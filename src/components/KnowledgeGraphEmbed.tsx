@@ -270,14 +270,17 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   useEffect(() => {
     const update = () => {
       if (containerRef.current) {
-        setDimensions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        setDimensions({ width: w || 800, height: Math.max(h, isMobile ? 400 : 500) });
       }
     };
-    update();
+    // Delay initial measurement to allow flex layout to resolve
+    const timer = setTimeout(update, 50);
     const ro = new ResizeObserver(update);
     if (containerRef.current) ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
+    return () => { clearTimeout(timer); ro.disconnect(); };
+  }, [isMobile]);
 
   const filteredData = (() => {
     if (filterType === "all") return graphData;
@@ -476,7 +479,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   }
 
   return (
-    <div className="relative flex flex-col h-full" onClick={() => { setContextMenu(null); }}>
+    <div className="relative flex flex-col h-full min-h-0" onClick={() => { setContextMenu(null); }}>
       {/* Top bar */}
       <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 border-b bg-background/95 backdrop-blur z-10 shrink-0 flex-wrap">
         {showHeader && !isMobile && (
@@ -552,7 +555,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       )}
 
       {/* Graph */}
-      <div ref={containerRef} className="flex-1 relative bg-[hsl(222,47%,6%)]">
+      <div ref={containerRef} className="flex-1 relative min-h-0 bg-[hsl(222,47%,6%)]" style={{ minHeight: isMobile ? 400 : 500 }}>
         <ForceGraph2D
           ref={fgRef}
           width={dimensions.width}
