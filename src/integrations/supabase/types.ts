@@ -14,7 +14,274 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analysis_results: {
+        Row: {
+          created_at: string
+          id: string
+          rfp_content: string
+          step1_data: Json | null
+          step2_data: Json | null
+          step3_data: Json | null
+          step4_data: Json | null
+          step5_data: Json | null
+          step6_data: Json | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rfp_content: string
+          step1_data?: Json | null
+          step2_data?: Json | null
+          step3_data?: Json | null
+          step4_data?: Json | null
+          step5_data?: Json | null
+          step6_data?: Json | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rfp_content?: string
+          step1_data?: Json | null
+          step2_data?: Json | null
+          step3_data?: Json | null
+          step4_data?: Json | null
+          step5_data?: Json | null
+          step6_data?: Json | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverables: {
+        Row: {
+          content: Json
+          created_at: string
+          deliverable_type: string
+          id: string
+          requirement_id: string
+          status: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          deliverable_type: string
+          id?: string
+          requirement_id: string
+          status?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          deliverable_type?: string
+          id?: string
+          requirement_id?: string
+          status?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliverables_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "requirements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_projects: {
+        Row: {
+          created_at: string
+          current_stage: string
+          execution_mode: string
+          id: string
+          merged_document: Json | null
+          model: string
+          rfp_content: string
+          stage_status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_stage?: string
+          execution_mode?: string
+          id?: string
+          merged_document?: Json | null
+          model?: string
+          rfp_content: string
+          stage_status?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_stage?: string
+          execution_mode?: string
+          id?: string
+          merged_document?: Json | null
+          model?: string
+          rfp_content?: string
+          stage_status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      proposal_sections: {
+        Row: {
+          category: string | null
+          created_at: string
+          draft_content: Json | null
+          draft_status: string
+          id: string
+          priority: string
+          project_id: string
+          requirement_description: string | null
+          requirement_number: string
+          requirement_title: string
+          research_data: Json | null
+          research_status: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+          user_notes: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          draft_content?: Json | null
+          draft_status?: string
+          id?: string
+          priority?: string
+          project_id: string
+          requirement_description?: string | null
+          requirement_number: string
+          requirement_title: string
+          research_data?: Json | null
+          research_status?: string
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+          user_notes?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          draft_content?: Json | null
+          draft_status?: string
+          id?: string
+          priority?: string
+          project_id?: string
+          requirement_description?: string | null
+          requirement_number?: string
+          requirement_title?: string
+          research_data?: Json | null
+          research_status?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+          user_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_sections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      requirements: {
+        Row: {
+          analysis_id: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: string | null
+          requirement_number: string
+          source: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string | null
+          requirement_number: string
+          source?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string | null
+          requirement_number?: string
+          source?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          id: string
+          is_active: boolean
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          provider: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
