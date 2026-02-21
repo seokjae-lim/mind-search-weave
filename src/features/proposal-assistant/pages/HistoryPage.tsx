@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import { useSavedAnalyses, SavedAnalysis } from "../hooks/useSavedAnalyses";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useAuth } from "../hooks/useAuth";
 import AuthModal from "../components/AuthModal";
 import {
   History,
@@ -19,6 +20,7 @@ import {
   BookOpen,
   Calendar,
   Eye,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,6 +258,7 @@ function ProposalDetail({ project }: { project: ProposalProjectRow }) {
 // ── Main page ──
 
 export default function HistoryPage() {
+  const navigate = useNavigate();
   const { user, signUp, signIn } = useAuth();
   const { savedAnalyses, loading: analysesLoading, deleteAnalysis } = useSavedAnalyses(user?.id);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -405,27 +408,41 @@ export default function HistoryPage() {
                           </Badge>
                         </div>
                       </button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>분석 결과 삭제</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              "{analysis.title}"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>취소</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteAnalysis(analysis.id)}>
-                              삭제
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate("/assistant/research", { state: { loadAnalysis: analysis } });
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          불러오기
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>분석 결과 삭제</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                "{analysis.title}"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteAnalysis(analysis.id)}>
+                                삭제
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
                   </CardHeader>
                   {expandedId === analysis.id && (

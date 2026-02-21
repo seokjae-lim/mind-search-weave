@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import RfpInput from "../components/RfpInput";
 import AnalysisResults from "../components/AnalysisResults";
 import AuthModal from "../components/AuthModal";
@@ -16,6 +17,7 @@ const AnalysisPageInner = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
   
   const { user, signUp, signIn, signOut } = useAuth();
   const {
@@ -25,6 +27,16 @@ const AnalysisPageInner = () => {
   } = useAnalysisContext();
 
   const { savedAnalyses, loading: loadingSaved, saveAnalysis, deleteAnalysis } = useSavedAnalyses(user?.id);
+
+  // Load analysis from history page navigation state
+  useEffect(() => {
+    const state = location.state as { loadAnalysis?: SavedAnalysis } | null;
+    if (state?.loadAnalysis) {
+      handleLoadAnalysis(state.loadAnalysis);
+      // Clear the state so it doesn't reload on re-render
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (content: string) => {
     setRfpContent(content);
