@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    wikiStats().then(setData).catch(() => {});
+    wikiStats().then(setData).catch(() => setData(null));
   }, []);
 
   if (!data) return <div className="flex h-full items-center justify-center text-muted-foreground">로딩 중...</div>;
