@@ -1,0 +1,145 @@
+{
+  "GET /api/search?q=데이터": {
+    "results": [
+      {
+        "chunk_id": "demo-ppt-001-s01",
+        "file_path": "국가중점데이터/03. 제안서/최종보고서_v3.2.pptx",
+        "file_type": "pptx",
+        "project_path": "국가중점데이터",
+        "doc_title": "최종보고서_v3.2",
+        "location_type": "slide",
+        "location_value": "1",
+        "location_detail": "Slide 1",
+        "snippet": "제5차 국가중점<mark>데이터</mark> 개방 확대...",
+        "mtime": "2025-12-15T10:30:00",
+        "tags": "[\"국가중점데이터\",\"데이터개방\",\"NIA\"]",
+        "category": "데이터",
+        "sub_category": "데이터 개방",
+        "author": "○○컨설팅",
+        "org": "NIA(한국지능정보사회진흥원)",
+        "doc_stage": "최종보고",
+        "doc_year": "2025",
+        "importance": 90,
+        "view_count": 45,
+        "rank": -5.2
+      }
+    ],
+    "total": 28,
+    "page": 1,
+    "limit": 20,
+    "query": "데이터"
+  },
+
+  "GET /api/browse?project=국가중점데이터&sort=mtime": {
+    "results": [
+      {
+        "chunk_id": "demo-ppt-001-s01",
+        "file_path": "국가중점데이터/03. 제안서/최종보고서_v3.2.pptx",
+        "file_type": "pptx",
+        "project_path": "국가중점데이터",
+        "doc_title": "최종보고서_v3.2",
+        "location_type": "slide",
+        "location_value": "1",
+        "location_detail": "Slide 1",
+        "snippet": "제5차 국가중점데이터 개방 확대 및 활용...",
+        "mtime": "2025-12-15T10:30:00",
+        "tags": "[\"국가중점데이터\",\"NIA\"]",
+        "category": "데이터",
+        "importance": 90,
+        "view_count": 45
+      }
+    ],
+    "total": 12,
+    "page": 1,
+    "limit": 20
+  },
+
+  "GET /api/doc/demo-ppt-001-s01": {
+    "chunk_id": "demo-ppt-001-s01",
+    "file_path": "국가중점데이터/03. 제안서/최종보고서_v3.2.pptx",
+    "file_type": "pptx",
+    "project_path": "국가중점데이터",
+    "doc_title": "최종보고서_v3.2",
+    "location_type": "slide",
+    "location_value": "1",
+    "location_detail": "Slide 1",
+    "text": "제5차 국가중점데이터 개방 확대 및 활용 촉진 전략 수립 최종보고서...",
+    "mtime": "2025-12-15T10:30:00",
+    "tags": "[\"국가중점데이터\",\"데이터개방\",\"NIA\",\"전략수립\"]",
+    "category": "데이터",
+    "sub_category": "데이터 개방",
+    "author": "○○컨설팅",
+    "org": "NIA(한국지능정보사회진흥원)",
+    "doc_stage": "최종보고",
+    "doc_year": "2025",
+    "importance": 90,
+    "view_count": 46,
+    "summary": "국가중점데이터 개방 확대 전략의 최종보고서 표지",
+    "related": [
+      { "chunk_id": "demo-ppt-001-s05", "doc_title": "최종보고서_v3.2", "location_detail": "Slide 5", "snippet": "현황분석 프레임워크..." }
+    ],
+    "similar": [
+      { "chunk_id": "demo-ppt-004-s03", "doc_title": "실태조사_최종보고", "file_path": "공공데이터활용실태조사/03. 보고서/실태조사_최종보고.pptx", "location_detail": "Slide 3", "category": "데이터", "snippet": "조사 개요..." }
+    ]
+  },
+
+  "GET /api/stats": {
+    "total_chunks": 28,
+    "total_files": 8,
+    "by_type": [
+      { "file_type": "pptx", "count": 15, "file_count": 4 },
+      { "file_type": "pdf", "count": 5, "file_count": 2 },
+      { "file_type": "xlsx", "count": 5, "file_count": 1 },
+      { "file_type": "csv", "count": 3, "file_count": 1 }
+    ],
+    "by_project": [
+      { "project_path": "국가중점데이터", "chunk_count": 12, "file_count": 3 },
+      { "project_path": "공공데이터활용실태조사", "chunk_count": 6, "file_count": 2 }
+    ],
+    "by_category": [
+      { "category": "데이터", "count": 10 },
+      { "category": "인프라", "count": 5 }
+    ],
+    "by_stage": [],
+    "by_org": [],
+    "by_year": [],
+    "top_viewed": [],
+    "last_indexed": "2025-12-15T10:30:00"
+  },
+
+  "GET /api/tags": {
+    "tags": [
+      { "tag": "NIA", "count": 12 },
+      { "tag": "데이터개방", "count": 8 },
+      { "tag": "거버넌스", "count": 6 },
+      { "tag": "품질관리", "count": 5 }
+    ]
+  },
+
+  "GET /api/projects": {
+    "projects": [
+      { "project_path": "국가중점데이터", "chunk_count": 12, "file_count": 3, "start_year": "2025", "end_year": "2025" },
+      { "project_path": "공공데이터활용실태조사", "chunk_count": 6, "file_count": 2, "start_year": "2025", "end_year": "2025" }
+    ]
+  },
+
+  "POST /api/ask": {
+    "question": "국가중점데이터 사업 예산은?",
+    "answer": "국가중점데이터 개방 확대 사업의 예산은 5억원(부가세 포함)입니다 [출처1].",
+    "sources": [
+      {
+        "chunk_id": "demo-pdf-002-p03",
+        "doc_title": "RFP_국가중점데이터_2025",
+        "file_type": "pdf",
+        "file_path": "국가중점데이터/01. 제안요청서/RFP_국가중점데이터_2025.pdf",
+        "location_detail": "Page 3",
+        "category": "사업관리",
+        "project_path": "국가중점데이터",
+        "summary": "국가중점데이터 사업 RFP - 7개월/5억원",
+        "similarity": 0.85
+      }
+    ],
+    "mode": "ai",
+    "model": "gpt-4o-mini"
+  }
+}

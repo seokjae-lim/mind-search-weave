@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, ArrowLeft, SlidersHorizontal, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, ArrowLeft, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,13 +10,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { searchChunks, getChunkById } from "@/lib/api";
-import type { SearchResponse, SearchResult, ChunkRecord, FileType } from "@/lib/types";
+import { search as wikiSearch, doc as wikiDoc, parseTags } from "@/lib/wikiApi";
+import type { WikiSearchResponse, WikiChunk, WikiDocDetail } from "@/lib/wikiApi";
 import { FileTypeIcon, FileTypeBadge } from "@/components/FileTypeIcon";
-import { LocationBadge } from "@/components/LocationBadge";
 import { useToast } from "@/hooks/use-toast";
 
-const FILE_TYPES: FileType[] = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
+const FILE_TYPES = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
 const PAGE_SIZE = 5;
 
 const RELATED_KEYWORDS: Record<string, string[]> = {
@@ -34,25 +33,19 @@ function getRelatedKeywords(query: string): string[] {
   return RELATED_KEYWORDS.default;
 }
 
-function highlightQuery(text: string, query: string): string {
-  if (!query.trim()) return text;
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text.replace(new RegExp(`(${escaped})`, "gi"), "<mark>$1</mark>");
-}
-
 interface SearchResultsProps {
-  initialResults: SearchResponse;
+  initialResults: WikiSearchResponse;
   initialQuery: string;
   onBack: () => void;
 }
 
 export function SearchResults({ initialResults, initialQuery, onBack }: SearchResultsProps) {
   const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<SearchResponse>(initialResults);
+  const [results, setResults] = useState<WikiSearchResponse>(initialResults);
   const [loading, setLoading] = useState(false);
-  const [selectedTypes, setSelectedTypes] = useState<FileType[]>([]);
-  const [sortBy, setSortBy] = useState<"relevance" | "recent">("relevance");
-  const [selectedChunk, setSelectedChunk] = useState<ChunkRecord | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<string>("relevance");
+  const [selectedChunk, setSelectedChunk] = useState<WikiDocDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [page, setPage] = useState(1);
   const { toast } = useToast();
@@ -68,8 +61,14 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
     setLoading(true);
     setPage(1);
     try {
-      const res = await searchChunks({ query: searchQuery, types: selectedTypes.length ? selectedTypes : undefined, sort: sortBy });
+      const res = await wikiSearch({
+        q: searchQuery,
+        type: selectedTypes.length === 1 ? selectedTypes[0] : undefined,
+        sort: sortBy,
+      });
       setResults(res);
+    } catch {
+      // handled by wikiApi toast
     } finally {
       setLoading(false);
     }
@@ -85,10 +84,12 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   };
 
   const openDetail = async (chunkId: string) => {
-    const chunk = await getChunkById(chunkId);
-    if (chunk) {
-      setSelectedChunk(chunk);
+    try {
+      const detail = await wikiDoc(chunkId);
+      setSelectedChunk(detail);
       setDetailOpen(true);
+    } catch {
+      // handled
     }
   };
 
@@ -97,7 +98,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
     toast({ title: "경로 복사 완료", description: path });
   };
 
-  const toggleType = (t: FileType) => {
+  const toggleType = (t: string) => {
     setSelectedTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   };
 
@@ -112,7 +113,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
             {FILE_TYPES.map((t) => (
               <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox checked={selectedTypes.includes(t)} onCheckedChange={() => toggleType(t)} />
-                <FileTypeIcon type={t} className="h-3.5 w-3.5" />
+                <FileTypeIcon type={t as any} className="h-3.5 w-3.5" />
                 <span>{t.toUpperCase()}</span>
               </label>
             ))}
@@ -120,11 +121,13 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
         </div>
         <div className="mb-4">
           <Label className="mb-2 block text-xs text-muted-foreground">정렬</Label>
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "relevance" | "recent")}>
+          <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="relevance">관련도순</SelectItem>
-              <SelectItem value="recent">최근수정순</SelectItem>
+              <SelectItem value="mtime">최근수정순</SelectItem>
+              <SelectItem value="views">조회수순</SelectItem>
+              <SelectItem value="importance">중요도순</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -137,7 +140,6 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {/* Search Bar */}
         <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur p-3">
           <div className="mx-auto flex max-w-3xl items-center gap-2">
             <Button variant="ghost" size="icon" className="shrink-0" onClick={onBack}>
@@ -145,13 +147,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
             </Button>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="결과 내 재검색"
-                className="pl-9 h-10"
-              />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKeyDown} placeholder="결과 내 재검색" className="pl-9 h-10" />
             </div>
             <Button onClick={() => doSearch()} disabled={loading} size="sm">
               {loading ? "검색 중..." : "검색"}
@@ -170,7 +166,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                 <p className="text-xs font-medium text-primary mb-1">AI 요약</p>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   '<span className="font-semibold text-foreground">{results.query}</span>' 관련하여 총 {results.total}건의 문서가 발견되었습니다.
-                  {results.total > 0 && ` 주요 프로젝트: ${[...new Set(results.results.map(r => r.chunk.project_path))].slice(0, 3).join(", ")}`}
+                  {results.total > 0 && ` 주요 프로젝트: ${[...new Set(results.results.map(r => r.project_path))].slice(0, 3).join(", ")}`}
                 </p>
               </div>
             </CardContent>
@@ -181,12 +177,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
             <p className="text-xs text-muted-foreground mb-2">관련 키워드</p>
             <div className="flex flex-wrap gap-1.5">
               {relatedKeywords.map((kw) => (
-                <Badge
-                  key={kw}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary/10 transition-colors text-xs"
-                  onClick={() => handleKeywordClick(kw)}
-                >
+                <Badge key={kw} variant="outline" className="cursor-pointer hover:bg-primary/10 transition-colors text-xs" onClick={() => handleKeywordClick(kw)}>
                   {kw}
                 </Badge>
               ))}
@@ -197,7 +188,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               &apos;<span className="font-semibold text-foreground">{results.query}</span>&apos; 검색 결과{" "}
-              <span className="font-medium text-foreground">{results.total}</span>건 · {results.took_ms}ms
+              <span className="font-medium text-foreground">{results.total}</span>건
             </p>
             <p className="text-xs text-muted-foreground">{page} / {totalPages} 페이지</p>
           </div>
@@ -211,8 +202,8 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
           )}
 
           <div className="space-y-2">
-            {paginatedResults.map((r) => (
-              <ResultCard key={r.chunk.chunk_id} result={r} query={query} onOpen={openDetail} onCopy={copyPath} onViewDoc={() => navigate(`/doc/${encodeURIComponent(r.chunk.file_path)}`)} />
+            {paginatedResults.map((chunk) => (
+              <ResultCard key={chunk.chunk_id} chunk={chunk} query={query} onOpen={openDetail} onCopy={copyPath} onViewDoc={() => navigate(`/doc/${encodeURIComponent(chunk.chunk_id)}`)} />
             ))}
           </div>
 
@@ -222,14 +213,8 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <Button
-                  key={p}
-                  variant={p === page ? "default" : "outline"}
-                  size="sm"
-                  className="w-8 h-8 p-0"
-                  onClick={() => setPage(p)}
-                >
+              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((p) => (
+                <Button key={p} variant={p === page ? "default" : "outline"} size="sm" className="w-8 h-8 p-0" onClick={() => setPage(p)}>
                   {p}
                 </Button>
               ))}
@@ -248,7 +233,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
             <>
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <FileTypeIcon type={selectedChunk.file_type} />
+                  <FileTypeIcon type={selectedChunk.file_type as any} />
                   {selectedChunk.doc_title}
                 </SheetTitle>
               </SheetHeader>
@@ -263,15 +248,14 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <FileTypeBadge type={selectedChunk.file_type} />
-                  <LocationBadge location={selectedChunk.location} />
+                  <Badge>{selectedChunk.file_type.toUpperCase()}</Badge>
+                  <Badge variant="outline">{selectedChunk.location_detail}</Badge>
+                  {selectedChunk.category && <Badge variant="secondary">{selectedChunk.category}</Badge>}
                   <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs ml-auto"
+                    size="sm" variant="outline" className="h-7 text-xs ml-auto"
                     onClick={() => {
-                      const fileName = selectedChunk.file_path.split("/").pop() || selectedChunk.doc_title;
-                      window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`, "_blank");
+                      const fn = selectedChunk.file_path.split("/").pop() || selectedChunk.doc_title;
+                      window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fn)}`, "_blank");
                     }}
                   >
                     <HardDrive className="mr-1 h-3 w-3" /> Drive에서 열기
@@ -280,19 +264,24 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                 <Separator />
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">전체 텍스트</p>
-                  <div
-                    className="rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: highlightQuery(selectedChunk.text, query) }}
-                  />
+                  <div className="rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap">
+                    {selectedChunk.text || selectedChunk.snippet}
+                  </div>
                 </div>
-                {selectedChunk.tags.length > 0 && (
+                {parseTags(selectedChunk.tags).length > 0 && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-2">태그</p>
                     <div className="flex flex-wrap gap-1">
-                      {selectedChunk.tags.map((tag) => (
+                      {parseTags(selectedChunk.tags).map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+                {selectedChunk.summary && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">요약</p>
+                    <p className="text-sm text-muted-foreground">{selectedChunk.summary}</p>
                   </div>
                 )}
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -308,9 +297,9 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   );
 }
 
-function ResultCard({ result, query, onOpen, onCopy, onViewDoc }: { result: SearchResult; query: string; onOpen: (id: string) => void; onCopy: (p: string) => void; onViewDoc: () => void }) {
-  const { chunk, highlight } = result;
+function ResultCard({ chunk, query, onOpen, onCopy, onViewDoc }: { chunk: WikiChunk; query: string; onOpen: (id: string) => void; onCopy: (p: string) => void; onViewDoc: () => void }) {
   const fileName = chunk.file_path.split("/").pop() || "";
+  const displayText = chunk.snippet || chunk.text?.substring(0, 200) || "";
 
   return (
     <Card className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/30" onClick={() => onOpen(chunk.chunk_id)}>
@@ -318,19 +307,16 @@ function ResultCard({ result, query, onOpen, onCopy, onViewDoc }: { result: Sear
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0">
-              <FileTypeIcon type={chunk.file_type} className="h-5 w-5" />
+              <FileTypeIcon type={chunk.file_type as any} className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm truncate text-foreground">{fileName}</p>
+              <p className="font-semibold text-sm truncate text-foreground">{chunk.doc_title || fileName}</p>
               <p className="text-xs text-muted-foreground truncate">{chunk.project_path}</p>
             </div>
           </div>
-          <LocationBadge location={chunk.location} />
+          <Badge variant="outline" className="text-[10px] shrink-0">{chunk.location_detail}</Badge>
         </div>
-        <p
-          className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mt-1"
-          dangerouslySetInnerHTML={{ __html: highlight }}
-        />
+        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mt-1" dangerouslySetInnerHTML={{ __html: displayText }} />
         <div className="mt-3 flex items-center gap-1 border-t pt-2">
           <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); onCopy(chunk.file_path); }}>
             <Copy className="mr-1 h-3 w-3" /> 경로 복사
@@ -341,6 +327,7 @@ function ResultCard({ result, query, onOpen, onCopy, onViewDoc }: { result: Sear
           <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`, "_blank"); }}>
             <HardDrive className="mr-1 h-3 w-3" /> Drive
           </Button>
+          {chunk.category && <Badge variant="secondary" className="text-[10px] ml-auto">{chunk.category}</Badge>}
         </div>
       </CardContent>
     </Card>

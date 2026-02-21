@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Wiki Chunk Record",
+  "description": "D1 chunks 테이블의 표준 스키마. 백엔드 API 응답에서 반환되는 청크 레코드.",
+  "type": "object",
+  "required": ["chunk_id", "file_path", "file_type", "text"],
+  "properties": {
+    "chunk_id": { "type": "string", "description": "고유 식별자 (예: demo-ppt-001-s01)" },
+    "file_path": { "type": "string", "description": "프로젝트 기준 상대 파일 경로" },
+    "file_type": { "type": "string", "enum": ["pptx", "pdf", "xlsx", "csv", "ipynb", "hwp", "docx"] },
+    "project_path": { "type": "string", "description": "최상위 프로젝트 폴더명" },
+    "doc_title": { "type": "string", "description": "문서 제목 (파일명 기반)" },
+    "location_type": { "type": "string", "enum": ["slide", "page", "sheet", "row", "cell", ""], "description": "위치 유형" },
+    "location_value": { "type": "string", "description": "위치 값 (슬라이드번호, 페이지번호 등)" },
+    "location_detail": { "type": "string", "description": "사람이 읽을 수 있는 위치 설명 (Slide 5, Page 3 등)" },
+    "text": { "type": "string", "description": "추출된 원문 텍스트" },
+    "mtime": { "type": "string", "format": "date-time", "description": "파일 수정 시각" },
+    "hash": { "type": "string", "description": "텍스트 해시 (중복 감지용)" },
+    "tags": { "type": "string", "description": "JSON 배열 문자열 (예: '[\"NIA\",\"데이터\"]')" },
+    "category": { "type": "string", "description": "자동 분류 카테고리 (데이터, 인프라, AI 등)" },
+    "sub_category": { "type": "string", "description": "세부 카테고리" },
+    "author": { "type": "string", "description": "작성자/수행기관" },
+    "org": { "type": "string", "description": "발주기관" },
+    "doc_stage": { "type": "string", "description": "문서 단계 (RFP, 제안서, 최종보고 등)" },
+    "doc_year": { "type": "string", "description": "문서 연도" },
+    "importance": { "type": "integer", "description": "중요도 점수 (0-100)" },
+    "view_count": { "type": "integer", "description": "조회수" },
+    "summary": { "type": "string", "description": "자동 요약" },
+    "indexed_at": { "type": "string", "format": "date-time", "description": "인덱싱 시각" }
+  }
+}
