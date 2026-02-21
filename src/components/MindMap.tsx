@@ -71,44 +71,96 @@ function buildMindMapTree(node: FolderNode, depth = 0, files?: BrowseFile[]): Mi
   };
 }
 
-// ─── Layout: compute positions ───
+// ─── Count visible descendants for proportional spacing ───
+function countVisibleDescendants(node: MindMapNode): number {
+  if (!node.expanded || node.children.length === 0) return 1;
+  return node.children.reduce((sum, c) => sum + countVisibleDescendants(c), 0);
+}
+
+// ─── Layout: compute positions with proportional angular allocation ───
 function layoutTree(root: MindMapNode, centerX: number, centerY: number) {
   root.targetX = centerX;
   root.targetY = centerY;
 
-  function layoutChildren(node: MindMapNode, angle: number, spread: number, radius: number) {
+  function layoutChildren(node: MindMapNode, angleCenter: number, angleRange: number, radius: number) {
     if (!node.expanded || node.children.length === 0) return;
 
-    const count = node.children.length;
-    const angleStep = spread / Math.max(count - 1, 1);
-    const startAngle = angle - spread / 2;
+    const totalWeight = node.children.reduce((s, c) => s + countVisibleDescendants(c), 0);
+    let currentAngle = angleCenter - angleRange / 2;
 
-    node.children.forEach((child, i) => {
-      const a = count === 1 ? angle : startAngle + angleStep * i;
-      child.targetX = node.targetX + Math.cos(a) * radius;
-      child.targetY = node.targetY + Math.sin(a) * radius;
+    node.children.forEach((child) => {
+      const weight = countVisibleDescendants(child);
+      const childAngleRange = (weight / totalWeight) * angleRange;
+      const childAngle = currentAngle + childAngleRange / 2;
 
-      // Recurse with smaller spread
-      const childSpread = Math.min(spread * 0.6, Math.PI * 0.8);
-      const childRadius = Math.max(radius * 0.7, 60);
-      layoutChildren(child, a, childSpread, childRadius);
+      child.targetX = node.targetX + Math.cos(childAngle) * radius;
+      child.targetY = node.targetY + Math.sin(childAngle) * radius;
+
+      const nextRadius = Math.max(radius * 0.75, 80);
+      const nextAngleRange = Math.min(childAngleRange * 0.95, Math.PI * 0.9);
+      layoutChildren(child, childAngle, nextAngleRange, nextRadius);
+
+      currentAngle += childAngleRange;
     });
   }
 
   if (root.expanded && root.children.length > 0) {
     const count = root.children.length;
+    // Dynamic radius based on child count
+    const baseRadius = Math.max(200, count * 35);
     const fullAngle = Math.PI * 2;
-    const angleStep = fullAngle / count;
+    const totalWeight = root.children.reduce((s, c) => s + countVisibleDescendants(c), 0);
+    let currentAngle = -Math.PI / 2;
 
-    root.children.forEach((child, i) => {
-      const a = -Math.PI / 2 + angleStep * i;
-      const radius = 180;
-      child.targetX = root.targetX + Math.cos(a) * radius;
-      child.targetY = root.targetY + Math.sin(a) * radius;
+    root.children.forEach((child) => {
+      const weight = countVisibleDescendants(child);
+      const childAngleRange = (weight / totalWeight) * fullAngle;
+      const childAngle = currentAngle + childAngleRange / 2;
 
-      const childSpread = Math.min(angleStep * 0.8, Math.PI * 0.7);
-      layoutChildren(child, a, childSpread, 130);
+      child.targetX = root.targetX + Math.cos(childAngle) * baseRadius;
+      child.targetY = root.targetY + Math.sin(childAngle) * baseRadius;
+
+      const subRadius = Math.max(140, weight * 30);
+      layoutChildren(child, childAngle, Math.min(childAngleRange * 0.85, Math.PI * 0.8), subRadius);
+
+      currentAngle += childAngleRange;
     });
+  }
+
+  // Collision resolution pass
+  resolveCollisions(root);
+}
+
+// ─── Collision resolution ───
+function resolveCollisions(root: MindMapNode) {
+  const visible = collectVisible(root);
+  const minDist = 90; // minimum distance between node centers
+
+  for (let iter = 0; iter < 5; iter++) {
+    let moved = false;
+    for (let i = 0; i < visible.length; i++) {
+      for (let j = i + 1; j < visible.length; j++) {
+        const a = visible[i];
+        const b = visible[j];
+        if (a.depth === 0 || b.depth === 0) continue; // don't push root
+
+        const dx = b.targetX - a.targetX;
+        const dy = b.targetY - a.targetY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < minDist && dist > 0.1) {
+          const push = (minDist - dist) / 2;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          a.targetX -= nx * push;
+          a.targetY -= ny * push;
+          b.targetX += nx * push;
+          b.targetY += ny * push;
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
   }
 }
 
