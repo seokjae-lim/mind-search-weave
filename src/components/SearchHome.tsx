@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Search, TrendingUp, Clock, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search, TrendingUp, Clock, Sparkles, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ interface SearchHomeProps {
 }
 
 export function SearchHome({ onSearch }: SearchHomeProps) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
 
@@ -83,6 +85,14 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
           >
             <Search className="h-5 w-5 mr-1.5" />
             검색
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/advanced-search")}
+            className="h-12 px-3 rounded-none border-0 border-l text-muted-foreground hover:text-primary"
+            title="상세 검색"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
           </Button>
         </div>
       </div>
