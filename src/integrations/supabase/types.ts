@@ -65,7 +65,8 @@ export type Database = {
           created_at: string
           deliverable_type: string
           id: string
-          requirement_id: string
+          requirement_id: string | null
+          section_id: string | null
           status: string | null
           title: string
           updated_at: string
@@ -76,7 +77,8 @@ export type Database = {
           created_at?: string
           deliverable_type: string
           id?: string
-          requirement_id: string
+          requirement_id?: string | null
+          section_id?: string | null
           status?: string | null
           title: string
           updated_at?: string
@@ -87,7 +89,8 @@ export type Database = {
           created_at?: string
           deliverable_type?: string
           id?: string
-          requirement_id?: string
+          requirement_id?: string | null
+          section_id?: string | null
           status?: string | null
           title?: string
           updated_at?: string
@@ -99,6 +102,13 @@ export type Database = {
             columns: ["requirement_id"]
             isOneToOne: false
             referencedRelation: "requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliverables_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_sections"
             referencedColumns: ["id"]
           },
         ]
