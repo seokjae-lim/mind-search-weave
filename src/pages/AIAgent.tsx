@@ -15,13 +15,22 @@ export default function AIAgentPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [embedInfo, setEmbedInfo] = useState<{ total: number; coverage: number; model?: string } | null>(null);
+  const [embedLoading, setEmbedLoading] = useState(true);
+  const [embedError, setEmbedError] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    embeddingStats().then((s) => {
-      setEmbedInfo({ total: s.total_chunks, coverage: Math.round(s.coverage * 100) });
-    }).catch(() => {});
-  }, []);
+  const loadEmbedInfo = () => {
+    setEmbedLoading(true);
+    setEmbedError(false);
+    embeddingStats()
+      .then((s) => {
+        setEmbedInfo({ total: s.total_chunks, coverage: Math.round(s.coverage * 100) });
+      })
+      .catch(() => setEmbedError(true))
+      .finally(() => setEmbedLoading(false));
+  };
+
+  useEffect(() => { loadEmbedInfo(); }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,6 +97,18 @@ export default function AIAgentPage() {
             <p className="text-sm text-white/80">컨설팅 산출물 기반 RAG Q&A · 문서 컨텍스트로 답변합니다</p>
           </div>
         </div>
+        {embedLoading && (
+          <div className="flex items-center gap-2 text-xs text-white/70 mt-1">
+            <div className="h-3 w-3 border border-white/50 border-t-transparent rounded-full animate-spin" />
+            <span>임베딩 정보를 불러오는 중...</span>
+          </div>
+        )}
+        {embedError && !embedInfo && (
+          <div className="flex items-center gap-2 text-xs text-white/70 mt-1">
+            <span className="text-red-300">⚠ 임베딩 정보를 불러올 수 없습니다</span>
+            <button onClick={loadEmbedInfo} className="underline text-white/80 hover:text-white">다시 시도</button>
+          </div>
+        )}
         {embedInfo && (
           <div className="flex items-center gap-2 text-xs text-white/70 mt-1">
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" /> 임베딩: {embedInfo.total} chunks ({embedInfo.coverage}% 커버리지)</span>
