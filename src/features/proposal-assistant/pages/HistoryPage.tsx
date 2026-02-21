@@ -441,7 +441,7 @@ export default function HistoryPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => exportAnalysisToPdf(analysis)}>
+                            <DropdownMenuItem onClick={async () => { await exportAnalysisToPdf(analysis); }}>
                               <FileText className="h-4 w-4 mr-2" /> PDF 내보내기
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportAnalysisToExcel(analysis)}>
@@ -538,7 +538,7 @@ export default function HistoryPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={async () => {
                               const { data: secs } = await supabase.from("proposal_sections").select("*").eq("project_id", project.id).order("sort_order", { ascending: true });
-                              exportProposalToPdf(project, (secs as any) || []);
+                              await exportProposalToPdf(project, (secs as any) || []);
                             }}>
                               <FileText className="h-4 w-4 mr-2" /> PDF 내보내기
                             </DropdownMenuItem>

@@ -39,7 +39,48 @@ function jsonToText(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
 
-// ── PDF Export (text-based, no font embedding needed for Korean via UTF-8) ──
+// ── Korean Font Loading ──
+
+let cachedFontBase64: string | null = null;
+
+async function loadKoreanFont(): Promise<string> {
+  if (cachedFontBase64) return cachedFontBase64;
+
+  // Fetch Noto Sans KR Regular TTF from Google Fonts static CDN
+  const fontUrl =
+    "https://fonts.gstatic.com/s/notosanskr/v36/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzuoyeLGC.ttf";
+
+  const response = await fetch(fontUrl);
+  if (!response.ok) throw new Error("폰트 다운로드에 실패했습니다.");
+  const buffer = await response.arrayBuffer();
+
+  // Convert to base64
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  cachedFontBase64 = btoa(binary);
+  return cachedFontBase64;
+}
+
+async function createPdfWithKoreanFont(): Promise<jsPDF> {
+  const doc = new jsPDF();
+
+  try {
+    const fontBase64 = await loadKoreanFont();
+    doc.addFileToVFS("NotoSansKR-Regular.ttf", fontBase64);
+    doc.addFont("NotoSansKR-Regular.ttf", "NotoSansKR", "normal");
+    doc.setFont("NotoSansKR", "normal");
+  } catch (err) {
+    console.warn("한글 폰트 로딩 실패, 기본 폰트로 대체합니다:", err);
+    // Fallback to default font
+  }
+
+  return doc;
+}
+
+// ── PDF text helpers ──
 
 function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number {
   const lines = doc.splitTextToSize(text, maxWidth);
@@ -54,8 +95,10 @@ function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth
   return y;
 }
 
-export function exportAnalysisToPdf(analysis: SavedAnalysis) {
-  const doc = new jsPDF();
+// ── PDF Export ──
+
+export async function exportAnalysisToPdf(analysis: SavedAnalysis) {
+  const doc = await createPdfWithKoreanFont();
   const maxW = 170;
   let y = 20;
 
@@ -66,13 +109,13 @@ export function exportAnalysisToPdf(analysis: SavedAnalysis) {
 
   doc.setFontSize(9);
   doc.setTextColor(120);
-  y = addWrappedText(doc, `Created: ${new Date(analysis.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
+  y = addWrappedText(doc, `생성일: ${new Date(analysis.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
   doc.setTextColor(0);
   y += 6;
 
   // RFP Content
   doc.setFontSize(12);
-  y = addWrappedText(doc, "RFP Content", 20, y, maxW, 6);
+  y = addWrappedText(doc, "RFP 원문", 20, y, maxW, 6);
   y += 2;
   doc.setFontSize(8);
   const rfpPreview = analysis.rfp_content.slice(0, 2000) + (analysis.rfp_content.length > 2000 ? "..." : "");
@@ -94,11 +137,11 @@ export function exportAnalysisToPdf(analysis: SavedAnalysis) {
   doc.save(`${analysis.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_분석결과.pdf`);
 }
 
-export function exportProposalToPdf(
+export async function exportProposalToPdf(
   project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
   sections: { requirement_number: string; requirement_title: string; requirement_description: string | null; research_data: Record<string, unknown> | null; draft_content: Record<string, unknown> | null }[]
 ) {
-  const doc = new jsPDF();
+  const doc = await createPdfWithKoreanFont();
   const maxW = 170;
   let y = 20;
 
@@ -108,7 +151,7 @@ export function exportProposalToPdf(
 
   doc.setFontSize(9);
   doc.setTextColor(120);
-  y = addWrappedText(doc, `Model: ${project.model} | Stage: ${project.current_stage} | Created: ${new Date(project.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
+  y = addWrappedText(doc, `모델: ${project.model} | 단계: ${project.current_stage} | 생성일: ${new Date(project.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
   doc.setTextColor(0);
   y += 8;
 
@@ -123,7 +166,7 @@ export function exportProposalToPdf(
       y += 2;
     }
     if (sec.draft_content) {
-      y = addWrappedText(doc, "--- Draft ---", 20, y, maxW, 4);
+      y = addWrappedText(doc, "--- 초안 ---", 20, y, maxW, 4);
       y = addWrappedText(doc, jsonToText(sec.draft_content).slice(0, 3000), 20, y, maxW, 4);
     }
     y += 8;
@@ -132,7 +175,7 @@ export function exportProposalToPdf(
   // Merged doc
   if (project.merged_document) {
     doc.setFontSize(12);
-    y = addWrappedText(doc, "Merged Proposal Document", 20, y, maxW, 6);
+    y = addWrappedText(doc, "통합 제안서", 20, y, maxW, 6);
     y += 2;
     doc.setFontSize(8);
     y = addWrappedText(doc, jsonToText(project.merged_document).slice(0, 5000), 20, y, maxW, 4);
