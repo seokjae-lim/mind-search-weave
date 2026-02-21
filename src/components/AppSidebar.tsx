@@ -30,7 +30,7 @@ const browseChildren = [
 ];
 
 const aiItems = [
-  { title: "AI 에이전트", url: "/ai-agent", icon: Bot },
+  { title: "챗봇", url: "/ai-agent", icon: Bot },
 ];
 
 const vizItems = [
