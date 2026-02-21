@@ -1,1 +1,22 @@
 project_id = "nzdczklpimltirpxpdrx"
+
+[functions.ai-summary]
+verify_jwt = false
+
+[functions.analyze-rfp]
+verify_jwt = false
+
+[functions.extract-requirements]
+verify_jwt = false
+
+[functions.research-requirement]
+verify_jwt = false
+
+[functions.draft-proposal]
+verify_jwt = false
+
+[functions.generate-deliverable]
+verify_jwt = false
+
+[functions.external-ai-proxy]
+verify_jwt = false
