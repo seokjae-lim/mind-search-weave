@@ -375,8 +375,9 @@ export function useProposalPipeline() {
           });
           if (synthError || !synthResult?.data) throw new Error("종합 실패");
           finalData = synthResult.data;
-          // Attach source model info
+          // Attach source model info and per-model raw data
           finalData._synthesized_from = modelResults.map(r => r.model);
+          finalData._model_results = modelResults;
         } catch {
           // Fallback: use first model's results
           finalData = modelResults[0].data;
