@@ -290,7 +290,54 @@ export async function exportAnalysisToPdf(analysis: SavedAnalysis) {
   doc.save(`${analysis.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_분석결과.pdf`);
 }
 
-// ── Proposal PDF Export ──
+// ── Deep Research Step Labels ──
+
+const RESEARCH_STEP_LABELS: Record<string, string> = {
+  "1_background": "배경분석",
+  "2_cases": "사례조사",
+  "3_technology": "기술분석",
+  "4_comparison": "비교분석",
+  "5_synthesis": "종합보고서",
+};
+
+const RESEARCH_STEP_KEYS = ["1_background", "2_cases", "3_technology", "4_comparison", "5_synthesis"];
+
+function renderResearchStepData(doc: jsPDF, data: Record<string, unknown>, startY: number): number {
+  let y = startY;
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "step_title") continue;
+    const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+    // Sub-heading
+    doc.setFontSize(9);
+    doc.setTextColor(41, 98, 255);
+    y = addWrappedText(doc, `▸ ${label}`, PAGE_MARGIN + 2, y, MAX_W - 4, 4.5);
+    doc.setTextColor(0);
+    y += 1;
+
+    if (typeof value === "string") {
+      doc.setFontSize(8.5);
+      y = addWrappedText(doc, value, PAGE_MARGIN + 4, y, MAX_W - 8, 4);
+    } else if (Array.isArray(value)) {
+      doc.setFontSize(8.5);
+      for (const item of value) {
+        const text = typeof item === "string" ? `• ${item}` : `• ${JSON.stringify(item)}`;
+        y = addWrappedText(doc, text, PAGE_MARGIN + 4, y, MAX_W - 8, 4);
+      }
+    } else if (typeof value === "object" && value !== null) {
+      doc.setFontSize(8);
+      const text = JSON.stringify(value, null, 2);
+      y = addWrappedText(doc, text.slice(0, 3000), PAGE_MARGIN + 4, y, MAX_W - 8, 3.8);
+    }
+    y += 3;
+  }
+  return y;
+}
+
+// ── Proposal PDF Export (with Deep Research) ──
 
 export async function exportProposalToPdf(
   project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
@@ -302,11 +349,26 @@ export async function exportProposalToPdf(
   // 1. Cover
   addCoverPage(doc, project.title, `제안서 | 모델: ${project.model}`, dateStr);
 
-  // Build TOC
-  const tocEntries: TocEntry[] = sections.map(s => ({
-    title: `[${s.requirement_number}] ${s.requirement_title}`,
-    page: 0,
-  }));
+  // Build TOC entries
+  const tocEntries: TocEntry[] = [];
+
+  // For each section: research chapter + draft chapter
+  for (const sec of sections) {
+    const hasResearch = sec.research_data && (sec.research_data as Record<string, unknown>).steps;
+    if (hasResearch) {
+      tocEntries.push({
+        title: `[${sec.requirement_number}] 딥리서치 - ${sec.requirement_title}`,
+        page: 0,
+      });
+    }
+    if (sec.draft_content) {
+      tocEntries.push({
+        title: `[${sec.requirement_number}] 제안서 초안 - ${sec.requirement_title}`,
+        page: 0,
+      });
+    }
+  }
+
   if (project.merged_document) {
     tocEntries.push({ title: "통합 제안서", page: 0 });
   }
@@ -315,37 +377,74 @@ export async function exportProposalToPdf(
   addTocPage(doc, tocEntries);
   const tocPageNumber = 2;
 
-  // 3. Sections
-  sections.forEach((sec, idx) => {
-    doc.addPage();
-    tocEntries[idx].page = doc.getNumberOfPages();
-    let y = PAGE_MARGIN;
+  // 3. Content pages
+  let tocIdx = 0;
 
-    y = addSectionHeader(doc, `[${sec.requirement_number}] ${sec.requirement_title}`, y);
+  for (const sec of sections) {
+    const deepData = sec.research_data as Record<string, unknown> | null;
+    const steps = deepData?.steps as Record<string, { status: string; data: Record<string, unknown> | null }> | undefined;
 
-    doc.setFontSize(9);
-    if (sec.requirement_description) {
-      doc.setTextColor(80);
-      y = addWrappedText(doc, sec.requirement_description, PAGE_MARGIN, y, MAX_W, 4.5);
-      doc.setTextColor(0);
-      y += 4;
+    // Deep Research chapter
+    if (steps) {
+      doc.addPage();
+      tocEntries[tocIdx].page = doc.getNumberOfPages();
+      tocIdx++;
+
+      let y = PAGE_MARGIN;
+      y = addSectionHeader(doc, `[${sec.requirement_number}] 딥리서치: ${sec.requirement_title}`, y);
+
+      if (sec.requirement_description) {
+        doc.setFontSize(8.5);
+        doc.setTextColor(80);
+        y = addWrappedText(doc, sec.requirement_description, PAGE_MARGIN, y, MAX_W, 4);
+        doc.setTextColor(0);
+        y += 4;
+      }
+
+      // Render each of the 5 steps
+      for (const stepKey of RESEARCH_STEP_KEYS) {
+        const stepInfo = steps[stepKey];
+        if (!stepInfo?.data || stepInfo.status !== "completed") continue;
+
+        // Step sub-header
+        if (y > 250) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+
+        doc.setFillColor(230, 236, 255);
+        doc.rect(PAGE_MARGIN, y - 3, MAX_W, 7, "F");
+        doc.setFontSize(10);
+        doc.setTextColor(41, 98, 255);
+        const stepLabel = RESEARCH_STEP_LABELS[stepKey] || stepKey;
+        y = addWrappedText(doc, `Step: ${stepLabel}`, PAGE_MARGIN + 2, y, MAX_W - 4, 5);
+        doc.setTextColor(0);
+        y += 3;
+
+        y = renderResearchStepData(doc, stepInfo.data, y);
+        y += 4;
+      }
     }
 
+    // Draft chapter
     if (sec.draft_content) {
-      doc.setFontSize(10);
-      doc.setTextColor(41, 98, 255);
-      y = addWrappedText(doc, "제안서 초안", PAGE_MARGIN, y, MAX_W, 5);
-      doc.setTextColor(0);
+      doc.addPage();
+      tocEntries[tocIdx].page = doc.getNumberOfPages();
+      tocIdx++;
+
+      let y = PAGE_MARGIN;
+      y = addSectionHeader(doc, `[${sec.requirement_number}] 제안서 초안: ${sec.requirement_title}`, y);
+
       doc.setFontSize(9);
-      y += 2;
-      y = addWrappedText(doc, jsonToText(sec.draft_content).slice(0, 5000), PAGE_MARGIN, y, MAX_W, 4.5);
+      const draftText = formatDraftContent(sec.draft_content);
+      y = addWrappedText(doc, draftText, PAGE_MARGIN, y, MAX_W, 4.5);
     }
-  });
+  }
 
   // Merged document
   if (project.merged_document) {
     doc.addPage();
-    tocEntries[tocEntries.length - 1].page = doc.getNumberOfPages();
+    tocEntries[tocIdx].page = doc.getNumberOfPages();
     let y = PAGE_MARGIN;
     y = addSectionHeader(doc, "통합 제안서", y);
     doc.setFontSize(9);
@@ -365,13 +464,16 @@ export async function exportProposalToPdf(
   let tocY = 30;
   doc.setFontSize(10);
   tocEntries.forEach((entry, idx) => {
+    if (tocY > CONTENT_BOTTOM) {
+      // Handle TOC overflow
+      tocY = 30;
+    }
     const num = `${idx + 1}.`;
     const adjustedPage = entry.page - tocPageNumber;
     const pageStr = `${adjustedPage}`;
     doc.setTextColor(50);
     doc.text(num, PAGE_MARGIN, tocY);
 
-    // Truncate long titles for TOC
     const maxTitleW = 140;
     let titleText = entry.title;
     while (doc.getTextWidth(titleText) > maxTitleW && titleText.length > 10) {
@@ -380,17 +482,36 @@ export async function exportProposalToPdf(
     doc.text(titleText, PAGE_MARGIN + 10, tocY);
     doc.text(pageStr, 190, tocY, { align: "right" });
     tocY += 7;
-
-    if (tocY > CONTENT_BOTTOM) {
-      // TOC overflow — unlikely but handled
-      tocY = 30;
-    }
   });
 
   // 5. Page numbers
   addPageNumbers(doc, 2);
 
   doc.save(`${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.pdf`);
+}
+
+// Helper to format draft content nicely
+function formatDraftContent(data: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const fieldLabels: Record<string, string> = {
+    section_title: "제목",
+    understanding: "요구사항 이해",
+    approach: "접근 방안",
+    implementation_plan: "구현 계획",
+    expected_outcomes: "기대 효과",
+  };
+
+  for (const [key, value] of Object.entries(data)) {
+    const label = fieldLabels[key] || key.replace(/_/g, " ");
+    if (typeof value === "string") {
+      parts.push(`[${label}]\n${value}`);
+    } else if (Array.isArray(value)) {
+      parts.push(`[${label}]\n${value.map(v => `• ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n")}`);
+    } else if (typeof value === "object" && value !== null) {
+      parts.push(`[${label}]\n${JSON.stringify(value, null, 2)}`);
+    }
+  }
+  return parts.join("\n\n");
 }
 
 // ── Excel Export ──
