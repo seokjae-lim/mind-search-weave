@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, Star, Eye, ChevronLeft, ChevronRight, FolderOpen, ChevronDown } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, Star, Eye, ChevronLeft, ChevronRight, FolderOpen, ChevronDown, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { search as wikiSearch, doc as wikiDoc, parseTags, projects as apiProjects, categories as apiCategories } from "@/lib/wikiApi";
+import { search as wikiSearch, doc as wikiDoc, similar as wikiSimilar, parseTags, projects as apiProjects, categories as apiCategories } from "@/lib/wikiApi";
 import type { WikiSearchResponse, WikiChunk, WikiDocDetail } from "@/lib/wikiApi";
-import { FileTypeBadge, CategoryBadge } from "@/components/FileTypeIcon";
+import { FileTypeIcon, FileTypeBadge, CategoryBadge } from "@/components/FileTypeIcon";
 import { useToast } from "@/hooks/use-toast";
 
 const FILE_TYPES = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
@@ -34,6 +34,8 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   const [selectedProject, setSelectedProject] = useState<string>("전체 사업");
   const [catList, setCatList] = useState<{ category: string; count: number }[]>([]);
   const [selectedCat, setSelectedCat] = useState<string>("전체");
+  const [vectorSimilar, setVectorSimilar] = useState<WikiChunk[]>([]);
+  const [vectorLoading, setVectorLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -70,6 +72,12 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
       const detail = await wikiDoc(chunkId);
       setSelectedChunk(detail);
       setDetailOpen(true);
+      // Fetch vector similar
+      setVectorSimilar([]);
+      setVectorLoading(true);
+      wikiSimilar(chunkId, 5).then((res) => {
+        setVectorSimilar(res.results.filter(r => r.chunk_id !== chunkId));
+      }).catch(() => {}).finally(() => setVectorLoading(false));
     } catch {}
   };
 
@@ -323,6 +331,32 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                     </div>
                   </div>
                 )}
+
+                {/* Vector Similar Documents */}
+                {(vectorLoading || vectorSimilar.length > 0) && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">🔗 벡터 유사 문서</p>
+                    {vectorLoading ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                        <Loader2 className="h-3 w-3 animate-spin" /> 유사 문서 검색 중...
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {vectorSimilar.map((v) => {
+                          const pct = v.similarity != null ? Math.round(v.similarity * 100) : null;
+                          return (
+                            <div key={v.chunk_id} className="flex items-center gap-2 text-xs p-1.5 rounded bg-muted/50 cursor-pointer hover:bg-muted" onClick={() => navigate(`/doc/${encodeURIComponent(v.chunk_id)}`)}>
+                              {pct !== null && <span className="font-bold text-primary min-w-[32px]">{pct}%</span>}
+                              <FileTypeIcon type={v.file_type as any} className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate flex-1">{v.doc_title}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
 
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => copyPath(selectedChunk.file_path)}>
