@@ -12,6 +12,7 @@ interface MindMapNode {
   path: string;
   children: MindMapNode[];
   fileCount: number;
+  fileType?: string;
   depth: number;
   expanded: boolean;
   x: number;
@@ -19,6 +20,19 @@ interface MindMapNode {
   targetX: number;
   targetY: number;
 }
+
+// ─── File type icon map ───
+const FILE_TYPE_ICON: Record<string, string> = {
+  pdf: "📕",
+  pptx: "📊",
+  xlsx: "📗",
+  csv: "📗",
+  docx: "📘",
+  hwp: "📄",
+  ipynb: "🔬",
+};
+const FOLDER_ICON = "📁";
+const getFileIcon = (fileType?: string) => fileType ? (FILE_TYPE_ICON[fileType] || "📄") : "";
 
 // ─── Color palette per depth ───
 const DEPTH_COLORS = [
@@ -48,6 +62,7 @@ function buildMindMapTree(node: FolderNode, depth = 0, files?: BrowseFile[]): Mi
         path: f.file_path,
         children: [],
         fileCount: f.chunk_count,
+        fileType: f.file_type,
         depth: depth + 1,
         expanded: false,
         x: 0, y: 0, targetX: 0, targetY: 0,
@@ -384,10 +399,11 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       const isActiveResult = searchResults.length > 0 && searchResults[activeResultIndex] === node.id;
       const color = getColor(node.depth);
 
-      const label = node.label;
+      const icon = isFile ? getFileIcon(node.fileType) : (!isRoot && node.children.length > 0 ? FOLDER_ICON : "");
+      const displayLabel = icon ? `${icon} ${node.label}` : node.label;
       const fontSize = isRoot ? 14 / zoom : Math.max(11 / zoom, 8);
       ctx.font = `${isHovered || isRoot || isActiveResult ? "600" : "400"} ${fontSize}px -apple-system, "Pretendard", sans-serif`;
-      const textWidth = ctx.measureText(label).width;
+      const textWidth = ctx.measureText(displayLabel).width;
       const paddingX = isRoot ? 20 : 14;
       const paddingY = isRoot ? 10 : 7;
       const boxW = textWidth + paddingX * 2;
@@ -432,7 +448,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       ctx.fillStyle = isRoot || isHovered || isActiveResult || isHighlighted ? "#fff" : "#e2e8f0";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(label, node.x, node.y);
+      ctx.fillText(displayLabel, node.x, node.y);
 
       // Expand indicator
       if (!isFile && node.children.length > 0) {
@@ -570,7 +586,10 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       const ctx = canvas.getContext("2d");
       if (!ctx) continue;
       ctx.font = `400 ${fontSize}px -apple-system, sans-serif`;
-      const tw = ctx.measureText(node.label).width;
+      const isFile = node.id.startsWith("file:");
+      const icon = isFile ? getFileIcon(node.fileType) : (!isRoot && node.children.length > 0 ? FOLDER_ICON : "");
+      const displayLabel = icon ? `${icon} ${node.label}` : node.label;
+      const tw = ctx.measureText(displayLabel).width;
       const px = isRoot ? 20 : 14;
       const py = isRoot ? 10 : 7;
       const hw = (tw + px * 2) / 2;
