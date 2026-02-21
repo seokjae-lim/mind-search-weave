@@ -44,6 +44,20 @@ const DEPTH_COLORS = [
   "hsl(340, 82%, 52%)",
 ];
 
+// ─── File type color palette ───
+const FILE_TYPE_COLORS: Record<string, { bg: string; border: string; accent: string }> = {
+  pdf:  { bg: "hsl(0, 72%, 20%)",   border: "hsl(0, 80%, 55%)",   accent: "hsl(0, 80%, 55%)" },
+  pptx: { bg: "hsl(24, 70%, 20%)",  border: "hsl(24, 85%, 55%)",  accent: "hsl(24, 85%, 55%)" },
+  xlsx: { bg: "hsl(142, 60%, 18%)", border: "hsl(142, 72%, 45%)", accent: "hsl(142, 72%, 45%)" },
+  csv:  { bg: "hsl(142, 60%, 18%)", border: "hsl(142, 72%, 45%)", accent: "hsl(142, 72%, 45%)" },
+  docx: { bg: "hsl(217, 70%, 22%)", border: "hsl(217, 80%, 58%)", accent: "hsl(217, 80%, 58%)" },
+  hwp:  { bg: "hsl(200, 60%, 20%)", border: "hsl(200, 70%, 52%)", accent: "hsl(200, 70%, 52%)" },
+  ipynb:{ bg: "hsl(32, 65%, 20%)",  border: "hsl(32, 80%, 55%)",  accent: "hsl(32, 80%, 55%)" },
+};
+const DEFAULT_FILE_COLOR = { bg: "hsl(222, 47%, 14%)", border: "hsl(220, 40%, 50%)", accent: "hsl(220, 40%, 50%)" };
+
+const getFileColor = (fileType?: string) => fileType ? (FILE_TYPE_COLORS[fileType] || DEFAULT_FILE_COLOR) : DEFAULT_FILE_COLOR;
+
 const getColor = (depth: number) => DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
 
 // ─── Build tree from FolderNode ───
@@ -397,7 +411,9 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       const isRoot = node.depth === 0;
       const isHighlighted = highlightedIds.has(node.id);
       const isActiveResult = searchResults.length > 0 && searchResults[activeResultIndex] === node.id;
-      const color = getColor(node.depth);
+      const depthColor = getColor(node.depth);
+      const fileColor = isFile ? getFileColor(node.fileType) : null;
+      const color = fileColor ? fileColor.accent : depthColor;
 
       const icon = isFile ? getFileIcon(node.fileType) : (!isRoot && node.children.length > 0 ? FOLDER_ICON : "");
       const displayLabel = icon ? `${icon} ${node.label}` : node.label;
@@ -423,13 +439,13 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       ctx.fillStyle = isActiveResult
         ? "hsl(45, 90%, 45%)"
         : isRoot
-          ? color
+          ? depthColor
           : isHighlighted
             ? `${color}dd`
             : isHovered
               ? color
               : isFile
-                ? "hsl(222, 47%, 14%)"
+                ? fileColor!.bg
                 : "hsl(222, 47%, 11%)";
       ctx.fill();
 
@@ -438,7 +454,11 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         ? "hsl(45, 100%, 70%)"
         : isHighlighted
           ? "hsl(45, 100%, 60%)"
-          : isHovered || isRoot ? color : `${color}66`;
+          : isHovered || isRoot
+            ? color
+            : isFile
+              ? `${fileColor!.border}88`
+              : `${depthColor}66`;
       ctx.lineWidth = isActiveResult ? 3 / zoom : isHighlighted ? 2 / zoom : isHovered ? 2 / zoom : 1 / zoom;
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -537,9 +557,10 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         visible.forEach((n) => {
           const { mx, my } = toMini(n.x, n.y);
           const r = n.depth === 0 ? 3 : 1.5;
+          const isFile = n.id.startsWith("file:");
           mCtx.beginPath();
           mCtx.arc(mx, my, r, 0, Math.PI * 2);
-          mCtx.fillStyle = getColor(n.depth);
+          mCtx.fillStyle = isFile ? getFileColor(n.fileType).accent : getColor(n.depth);
           mCtx.fill();
         });
 
