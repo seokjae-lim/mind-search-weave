@@ -6,11 +6,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  FileText, ZoomIn, ZoomOut, Maximize, Search, X, ChevronUp, ChevronDown,
-} from "lucide-react";
+import { Loader2, FileText, ZoomIn, ZoomOut, Maximize, Search, X, ChevronUp, ChevronDown } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
-import type { GraphNode, GraphNodeType, GraphEdgeType } from "@/lib/types";
+import { tags as apiTags, projects as apiProjects, browse as apiBrowse, parseTags } from "@/lib/wikiApi";
+import type { WikiChunk } from "@/lib/wikiApi";
+import type { GraphNode, GraphNodeType, GraphEdgeType, GraphData, GraphLink } from "@/lib/types";
 
 // ─── Node type visual config ───
 const NODE_CONFIG: Record<GraphNodeType, { icon: string; label: string; fg: string; bg: string }> = {
@@ -35,66 +35,68 @@ const EDGE_LABELS: Record<GraphEdgeType, string> = {
   TAGGED: "태그",
 };
 
-const NODE_FILE_MAP: Record<string, string> = {
-  d1: "국가중점데이터/03.제안서/최종본/최종보고.pptx",
-  d2: "국가중점데이터/04.수행/현황분석/기관현황조사.pdf",
-  d3: "디지털플랫폼정부/02.제안서/DPG_제안서_v3.pptx",
-  d4: "AI분석플랫폼/03.제안서/AI플랫폼_제안서.pptx",
-  d5: "스마트시티/03.제안서/스마트시티_ISP_최종.pptx",
-};
+// Build graph from API data
+async function buildGraphFromAPI(): Promise<GraphData> {
+  const [projectsRes, tagsRes, browseRes] = await Promise.all([
+    apiProjects(),
+    apiTags(),
+    apiBrowse({ limit: 50, sort: "views" }),
+  ]);
 
-import type { GraphData } from "@/lib/types";
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
+  const nodeIds = new Set<string>();
 
-const MOCK_GRAPH: GraphData = {
-  nodes: [
-    { id: "p1", label: "국가중점데이터", type: "project", val: 10 },
-    { id: "p2", label: "디지털플랫폼정부", type: "project", val: 8 },
-    { id: "p3", label: "AI분석플랫폼", type: "project", val: 9 },
-    { id: "p4", label: "스마트시티", type: "project", val: 7 },
-    { id: "d1", label: "최종보고.pptx", type: "document", val: 5 },
-    { id: "d2", label: "기관현황조사.pdf", type: "document", val: 5 },
-    { id: "d3", label: "DPG_제안서_v3.pptx", type: "document", val: 4 },
-    { id: "d4", label: "AI플랫폼_제안서.pptx", type: "document", val: 4 },
-    { id: "d5", label: "스마트시티_ISP.pptx", type: "document", val: 4 },
-    { id: "i1", label: "NIA", type: "institution", val: 6 },
-    { id: "i2", label: "행정안전부", type: "institution", val: 6 },
-    { id: "i3", label: "국토교통부", type: "institution", val: 5 },
-    { id: "s1", label: "데이터포털", type: "system", val: 4 },
-    { id: "s2", label: "클라우드플랫폼", type: "system", val: 4 },
-    { id: "st1", label: "데이터품질관리", type: "strategy", val: 5 },
-    { id: "st2", label: "마이크로서비스아키텍처", type: "strategy", val: 4 },
-    { id: "st3", label: "MLOps파이프라인", type: "strategy", val: 4 },
-    { id: "ds1", label: "공공데이터API", type: "dataset", val: 4 },
-    { id: "ds2", label: "IoT센서데이터", type: "dataset", val: 3 },
-    { id: "k1", label: "데이터", type: "keyword", val: 6 },
-    { id: "k2", label: "API", type: "keyword", val: 5 },
-    { id: "k3", label: "클라우드", type: "keyword", val: 4 },
-  ],
-  links: [
-    { source: "p1", target: "d1", type: "HAS_DOCUMENT" },
-    { source: "p1", target: "d2", type: "HAS_DOCUMENT" },
-    { source: "p2", target: "d3", type: "HAS_DOCUMENT" },
-    { source: "p3", target: "d4", type: "HAS_DOCUMENT" },
-    { source: "p4", target: "d5", type: "HAS_DOCUMENT" },
-    { source: "p1", target: "i1", type: "BELONGS_TO" },
-    { source: "p2", target: "i2", type: "BELONGS_TO" },
-    { source: "p4", target: "i3", type: "BELONGS_TO" },
-    { source: "d1", target: "st1", type: "APPLIES_STRATEGY" },
-    { source: "d3", target: "st2", type: "APPLIES_STRATEGY" },
-    { source: "d4", target: "st3", type: "APPLIES_STRATEGY" },
-    { source: "d1", target: "s1", type: "MENTIONS" },
-    { source: "d3", target: "s2", type: "MENTIONS" },
-    { source: "d2", target: "ds1", type: "GENERATED_FROM" },
-    { source: "d5", target: "ds2", type: "GENERATED_FROM" },
-    { source: "d1", target: "k1", type: "MENTIONS" },
-    { source: "d2", target: "k2", type: "MENTIONS" },
-    { source: "d3", target: "k3", type: "MENTIONS" },
-    { source: "st1", target: "st2", type: "RELATED_TO" },
-    { source: "st2", target: "st3", type: "RELATED_TO" },
-    { source: "k1", target: "ds1", type: "RELATED_TO" },
-    { source: "k2", target: "ds1", type: "RELATED_TO" },
-  ],
-};
+  const addNode = (id: string, label: string, type: GraphNodeType, val = 4) => {
+    if (nodeIds.has(id)) return;
+    nodeIds.add(id);
+    nodes.push({ id, label, type, val });
+  };
+
+  // Projects
+  projectsRes.projects.forEach((p) => {
+    addNode(`p:${p.project_path}`, p.project_path, "project", Math.max(6, Math.min(12, p.file_count)));
+  });
+
+  // Top tags as keyword nodes
+  const topTags = (tagsRes.tags || []).slice(0, 20);
+  topTags.forEach((t) => {
+    addNode(`t:${t.tag}`, t.tag, "tag", Math.max(3, Math.min(8, Math.ceil(t.count / 5))));
+  });
+
+  // Documents from browse
+  const seenFiles = new Set<string>();
+  browseRes.results.forEach((chunk: WikiChunk) => {
+    if (seenFiles.has(chunk.file_path)) return;
+    seenFiles.add(chunk.file_path);
+    const docId = `d:${chunk.file_path}`;
+    addNode(docId, chunk.doc_title, "document", 5);
+
+    // Link document -> project
+    const projId = `p:${chunk.project_path}`;
+    if (nodeIds.has(projId)) {
+      links.push({ source: projId, target: docId, type: "HAS_DOCUMENT" });
+    }
+
+    // Link document -> tags
+    const chunkTags = parseTags(chunk.tags);
+    chunkTags.forEach((tag) => {
+      const tagId = `t:${tag}`;
+      if (nodeIds.has(tagId)) {
+        links.push({ source: docId, target: tagId, type: "TAGGED" });
+      }
+    });
+
+    // Extract org if present
+    if (chunk.org) {
+      const orgId = `o:${chunk.org}`;
+      addNode(orgId, chunk.org, "institution", 5);
+      links.push({ source: docId, target: orgId, type: "BELONGS_TO" });
+    }
+  });
+
+  return { nodes, links };
+}
 
 // ─── Minimap ───
 const MINIMAP_W = 180;
@@ -229,11 +231,7 @@ function Minimap({ fgRef, graphData }: { fgRef: React.RefObject<any>; graphData:
 
   return (
     <div className="absolute bottom-3 right-3 z-10 rounded-lg overflow-hidden border border-border shadow-lg bg-background/90 backdrop-blur-sm">
-      <canvas
-        ref={canvasRef}
-        style={{ width: MINIMAP_W, height: MINIMAP_H, cursor: "crosshair" }}
-        onClick={handleClick}
-      />
+      <canvas ref={canvasRef} style={{ width: MINIMAP_W, height: MINIMAP_H, cursor: "crosshair" }} onClick={handleClick} />
     </div>
   );
 }
@@ -256,13 +254,21 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: any } | null>(null);
 
+  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
+  const [loading, setLoading] = useState(true);
+
+  // Load graph data from API
+  useEffect(() => {
+    buildGraphFromAPI()
+      .then(setGraphData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
   useEffect(() => {
     const update = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
-        });
+        setDimensions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
       }
     };
     update();
@@ -271,18 +277,18 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
     return () => ro.disconnect();
   }, []);
 
-  const graphData = (() => {
-    if (filterType === "all") return MOCK_GRAPH;
-    const nodes = MOCK_GRAPH.nodes.filter((n) => n.type === filterType);
+  const filteredData = (() => {
+    if (filterType === "all") return graphData;
+    const nodes = graphData.nodes.filter((n) => n.type === filterType);
     const ids = new Set(nodes.map((n) => n.id));
-    const links = MOCK_GRAPH.links.filter((l) => ids.has(l.source as string) && ids.has(l.target as string));
+    const links = graphData.links.filter((l) => ids.has(l.source as string) && ids.has(l.target as string));
     return { nodes, links };
   })();
 
   const connectedIds = (() => {
     if (!hoveredNode) return new Set<string>();
     const ids = new Set<string>([hoveredNode]);
-    MOCK_GRAPH.links.forEach((l) => {
+    graphData.links.forEach((l) => {
       const s = typeof l.source === "object" ? (l.source as any).id : l.source;
       const t = typeof l.target === "object" ? (l.target as any).id : l.target;
       if (s === hoveredNode) ids.add(t);
@@ -292,7 +298,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   })();
 
   const getConnections = (nodeId: string) => {
-    return MOCK_GRAPH.links
+    return graphData.links
       .filter((l) => {
         const s = typeof l.source === "object" ? (l.source as any).id : l.source;
         const t = typeof l.target === "object" ? (l.target as any).id : l.target;
@@ -302,7 +308,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
         const s = typeof l.source === "object" ? (l.source as any).id : l.source;
         const t = typeof l.target === "object" ? (l.target as any).id : l.target;
         const otherId = s === nodeId ? t : s;
-        const node = MOCK_GRAPH.nodes.find((n) => n.id === otherId);
+        const node = graphData.nodes.find((n) => n.id === otherId);
         return node ? { node, edgeType: l.type } : null;
       })
       .filter(Boolean) as { node: GraphNode; edgeType?: GraphEdgeType }[];
@@ -317,7 +323,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       return;
     }
     const q = query.toLowerCase();
-    const matches = MOCK_GRAPH.nodes
+    const matches = graphData.nodes
       .filter((n) => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q))
       .map((n) => n.id);
     setSearchResults(matches);
@@ -328,25 +334,25 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
     } else {
       setHighlightedIds(new Set());
     }
-  }, []);
+  }, [graphData]);
 
   const focusOnNode = useCallback((nodeId: string) => {
     const fg = fgRef.current;
     if (!fg) return;
-    const node = (graphData.nodes as any[]).find((n: any) => n.id === nodeId);
+    const node = (filteredData.nodes as any[]).find((n: any) => n.id === nodeId);
     if (node && node.x != null) {
       fg.centerAt(node.x, node.y, 400);
       fg.zoom(3, 400);
     }
     const connected = new Set<string>([nodeId]);
-    MOCK_GRAPH.links.forEach((l) => {
+    graphData.links.forEach((l) => {
       const s = typeof l.source === "object" ? (l.source as any).id : l.source;
       const t = typeof l.target === "object" ? (l.target as any).id : l.target;
       if (s === nodeId) connected.add(t);
       if (t === nodeId) connected.add(s);
     });
     setHighlightedIds(connected);
-  }, [graphData]);
+  }, [filteredData, graphData]);
 
   const goToResult = useCallback((index: number) => {
     if (searchResults.length === 0) return;
@@ -379,16 +385,10 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
 
     ctx.beginPath();
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
-    ctx.fillStyle = isActiveResult
-      ? "hsl(45, 90%, 45%)"
-      : dimmed ? `${cfg.bg}33` : cfg.bg;
+    ctx.fillStyle = isActiveResult ? "hsl(45, 90%, 45%)" : dimmed ? `${cfg.bg}33` : cfg.bg;
     ctx.fill();
 
-    ctx.strokeStyle = isActiveResult
-      ? "hsl(45, 100%, 70%)"
-      : isHighlighted
-        ? "hsl(45, 100%, 60%)"
-        : isHovered ? "#fff" : dimmed ? `${cfg.bg}22` : `${cfg.bg}88`;
+    ctx.strokeStyle = isActiveResult ? "hsl(45, 100%, 70%)" : isHighlighted ? "hsl(45, 100%, 60%)" : isHovered ? "#fff" : dimmed ? `${cfg.bg}22` : `${cfg.bg}88`;
     ctx.lineWidth = isActiveResult ? 3 / globalScale : isHighlighted ? 2 / globalScale : isHovered ? 2 : 0.5;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -417,9 +417,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
     ctx.beginPath();
     ctx.moveTo(s.x, s.y);
     ctx.lineTo(t.x, t.y);
-    ctx.strokeStyle = isSearchHighlighted
-      ? "hsl(45, 100%, 60%)"
-      : dimmed ? "rgba(100,100,100,0.05)" : isHighlighted ? "rgba(200,200,255,0.6)" : "rgba(100,116,139,0.2)";
+    ctx.strokeStyle = isSearchHighlighted ? "hsl(45, 100%, 60%)" : dimmed ? "rgba(100,100,100,0.05)" : isHighlighted ? "rgba(200,200,255,0.6)" : "rgba(100,116,139,0.2)";
     ctx.lineWidth = isSearchHighlighted ? 2 / globalScale : isHighlighted ? 1.5 / globalScale : 0.5 / globalScale;
     ctx.stroke();
 
@@ -430,287 +428,276 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       ctx.font = `${fontSize}px -apple-system, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = isHighlighted || isSearchHighlighted ? "rgba(200,200,255,0.8)" : "rgba(148,163,184,0.5)";
-      ctx.fillText(EDGE_LABELS[link.type as GraphEdgeType] || link.type, midX, midY);
+      ctx.fillStyle = "rgba(148,163,184,0.5)";
+      const label = EDGE_LABELS[link.type as GraphEdgeType] || link.type;
+      ctx.fillText(label, midX, midY);
     }
   }, [hoveredNode, connectedIds, highlightedIds]);
 
-  const handleContextMenu = useCallback((node: any, event: MouseEvent) => {
-    event.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setContextMenu({
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-      node,
-    });
-  }, []);
+  const handleNodeClick = useCallback((node: any) => {
+    setSelectedNode(node);
+    setDetailOpen(true);
+    focusOnNode(node.id);
+  }, [focusOnNode]);
 
-  const handleNodeHover = useCallback((node: any) => {
+  const handleNodeHover = useCallback((node: any, prevNode: any) => {
     setHoveredNode(node?.id || null);
-    if (node) {
+    if (node && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
       const fg = fgRef.current;
       if (fg) {
-        const pos = fg.graph2ScreenCoords(node.x, node.y);
-        setTooltipPos({ x: pos.x, y: pos.y });
+        const coords = fg.graph2ScreenCoords(node.x, node.y);
+        setTooltipPos({ x: coords.x + rect.left, y: coords.y + rect.top });
       }
     } else {
       setTooltipPos(null);
     }
   }, []);
 
+  const handleContextMenu = useCallback((node: any, event: MouseEvent) => {
+    event.preventDefault();
+    setContextMenu({ x: event.clientX, y: event.clientY, node });
+  }, []);
+
+  // Get file path from node for navigation
+  const getNodeFilePath = (node: GraphNode): string | null => {
+    if (node.id.startsWith("d:")) return node.id.substring(2);
+    return null;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full">
-      {showHeader && (
-        <div className="border-b bg-background px-4 py-2 flex items-center justify-between">
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-36 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체</SelectItem>
-              {Object.entries(NODE_CONFIG).map(([type, cfg]) => (
-                <SelectItem key={type} value={type}>
-                  {cfg.icon} {cfg.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+    <div className="relative flex flex-col h-full" onClick={() => { setContextMenu(null); }}>
+      {/* Top bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background/95 backdrop-blur z-10 shrink-0">
+        {showHeader && (
+          <h3 className="text-sm font-semibold mr-2">지식 그래프</h3>
+        )}
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-28 h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체</SelectItem>
+            {Object.entries(NODE_CONFIG).map(([key, cfg]) => (
+              <SelectItem key={key} value={key}>
+                {cfg.icon} {cfg.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      <div className="flex-1 relative overflow-hidden bg-[hsl(222,47%,6%)]" ref={containerRef}>
-        {/* Search */}
-        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
-          <div className="relative flex items-center">
-            <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="노드 검색..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") goToResult(activeResultIndex + 1);
-                if (e.key === "Escape") clearSearch();
-              }}
-              className="h-8 w-48 pl-7 pr-7 text-xs bg-background/90 backdrop-blur-sm"
-            />
-            {searchQuery && (
-              <button onClick={clearSearch} className="absolute right-2 text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+        <div className="relative flex-1 max-w-xs ml-2">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="노드 검색..."
+            className="h-7 pl-7 text-xs"
+          />
+          {searchQuery && (
+            <button onClick={clearSearch} className="absolute right-2 top-1/2 -translate-y-1/2">
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        {searchResults.length > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">{activeResultIndex + 1}/{searchResults.length}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => goToResult(activeResultIndex - 1)}>
+              <ChevronUp className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => goToResult(activeResultIndex + 1)}>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
           </div>
-          {searchResults.length > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground bg-background/90 backdrop-blur-sm rounded px-2 py-1.5 border border-border">
-              <span className="font-medium">{activeResultIndex + 1}/{searchResults.length}</span>
-              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => goToResult(activeResultIndex - 1)}>
-                <ChevronUp className="h-3 w-3" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => goToResult(activeResultIndex + 1)}>
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          {searchQuery && searchResults.length === 0 && (
-            <span className="text-xs text-muted-foreground bg-background/90 backdrop-blur-sm rounded px-2 py-1.5 border border-border">
-              결과 없음
-            </span>
-          )}
-        </div>
+        )}
 
-        {/* Controls */}
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-28 h-8 text-xs bg-background/90 backdrop-blur-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체</SelectItem>
-              {Object.entries(NODE_CONFIG).map(([type, cfg]) => (
-                <SelectItem key={type} value={type}>
-                  {cfg.icon} {cfg.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => fgRef.current?.zoom(fgRef.current.zoom() * 1.3, 200)} title="확대">
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fgRef.current?.zoom(fgRef.current.zoom() * 1.3, 300)}>
             <ZoomIn className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => fgRef.current?.zoom(fgRef.current.zoom() * 0.7, 200)} title="축소">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fgRef.current?.zoom(fgRef.current.zoom() / 1.3, 300)}>
             <ZoomOut className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => fgRef.current?.zoomToFit(300, 40)} title="맞춤">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fgRef.current?.zoomToFit(400, 40)}>
             <Maximize className="h-3.5 w-3.5" />
           </Button>
         </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-12 left-3 z-10 bg-background/85 backdrop-blur-sm rounded-lg border border-border px-3 py-2">
-          <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">노드 타입</p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {Object.entries(NODE_CONFIG).map(([type, cfg]) => (
-              <button
-                key={type}
-                onClick={() => setFilterType(filterType === type ? "all" : type)}
-                className={`flex items-center gap-1.5 transition-colors ${filterType === type ? "opacity-100" : "opacity-70 hover:opacity-100"}`}
-              >
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: cfg.bg }} />
-                <span className="text-[10px] text-muted-foreground">{cfg.icon} {cfg.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Hint */}
-        <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded px-2 py-1">
-          클릭: 상세 · 드래그: 이동 · 우클릭: 메뉴 · 스크롤: 줌
-        </div>
-
-        {/* Force Graph */}
-        <ForceGraph2D
-          ref={fgRef}
-          graphData={graphData}
-          width={dimensions.width}
-          height={dimensions.height}
-          backgroundColor="hsl(222 47% 6%)"
-          nodeCanvasObject={paintNode}
-          linkCanvasObject={paintLink}
-          nodeVal={(n: any) => n.val || 4}
-          onNodeClick={(node: any) => {
-            setContextMenu(null);
-            setSelectedNode(node);
-            setDetailOpen(true);
-          }}
-          onNodeHover={handleNodeHover}
-          onNodeRightClick={handleContextMenu}
-          onBackgroundClick={() => { setContextMenu(null); setHighlightedIds(new Set()); }}
-          nodeLabel={() => ""}
-          linkDirectionalParticles={0}
-          cooldownTicks={80}
-          d3AlphaDecay={0.02}
-          d3VelocityDecay={0.3}
-          enableZoomInteraction={true}
-          enablePanInteraction={true}
-          enableNodeDrag={true}
-        />
-
-        {/* Minimap */}
-        <Minimap fgRef={fgRef} graphData={graphData} />
-
-        {/* Hover Tooltip */}
-        {hoveredNode && tooltipPos && !detailOpen && !contextMenu && (() => {
-          const node = MOCK_GRAPH.nodes.find((n) => n.id === hoveredNode);
-          if (!node) return null;
-          const cfg = NODE_CONFIG[node.type];
-          const connections = getConnections(node.id);
-          const filePath = NODE_FILE_MAP[node.id];
-          return (
-            <div
-              className="absolute z-20 pointer-events-none w-56 rounded-lg border border-border bg-popover/95 backdrop-blur-sm text-popover-foreground shadow-xl px-3 py-2.5 space-y-1 animate-in fade-in-0 duration-150"
-              style={{ left: Math.min(tooltipPos.x + 12, dimensions.width - 240), top: Math.max(tooltipPos.y - 80, 8) }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: cfg.bg }} />
-                <span className="text-xs font-semibold truncate">{node.label}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground">{cfg.icon} {cfg.label}</p>
-              {filePath && <p className="text-[10px] text-muted-foreground truncate" title={filePath}>📂 {filePath}</p>}
-              <div className="text-[10px] text-muted-foreground">🔗 {connections.length}개 연결</div>
-            </div>
-          );
-        })()}
-
-        {/* Context Menu */}
-        {contextMenu && (
-          <>
-            <div className="fixed inset-0 z-20" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
-            <div
-              className="absolute z-30 min-w-[180px] rounded-lg border border-border bg-popover text-popover-foreground shadow-xl py-1 animate-in fade-in-0 zoom-in-95"
-              style={{ left: contextMenu.x, top: contextMenu.y }}
-            >
-              <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground truncate max-w-[200px]">
-                {NODE_CONFIG[contextMenu.node.type as GraphNodeType]?.icon} {contextMenu.node.label}
-              </div>
-              <div className="h-px bg-border my-1" />
-              <button onClick={() => { focusOnNode(contextMenu.node.id); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
-                🔍 이 노드로 포커스
-              </button>
-              <button onClick={() => { setSelectedNode(contextMenu.node); setDetailOpen(true); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
-                📋 상세 정보 보기
-              </button>
-              {contextMenu.node.type === "document" && NODE_FILE_MAP[contextMenu.node.id] && (
-                <button onClick={() => { navigate(`/doc/${encodeURIComponent(NODE_FILE_MAP[contextMenu.node.id])}`); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
-                  📄 문서 상세 보기
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  const connected = new Set<string>([contextMenu.node.id]);
-                  MOCK_GRAPH.links.forEach((l) => {
-                    const s = typeof l.source === "object" ? (l.source as any).id : l.source;
-                    const t = typeof l.target === "object" ? (l.target as any).id : l.target;
-                    if (s === contextMenu.node.id) connected.add(t);
-                    if (t === contextMenu.node.id) connected.add(s);
-                  });
-                  setHighlightedIds(connected);
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                ✨ 연결 노드 하이라이트
-              </button>
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Detail Sheet */}
-      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent className="w-full sm:max-w-md overflow-auto">
-          {selectedNode && (() => {
-            const cfg = NODE_CONFIG[selectedNode.type];
-            const connections = getConnections(selectedNode.id);
+      {/* Legend */}
+      <div className="absolute top-14 left-3 z-10 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
+        {Object.entries(NODE_CONFIG).map(([key, cfg]) => (
+          <button
+            key={key}
+            className={`flex items-center gap-1.5 text-[10px] px-1.5 py-0.5 rounded hover:bg-muted transition-colors ${filterType === key ? "bg-muted font-medium" : ""}`}
+            onClick={() => setFilterType(filterType === key ? "all" : key)}
+          >
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.bg }} />
+            {cfg.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Graph */}
+      <div ref={containerRef} className="flex-1 relative bg-[hsl(222,47%,6%)]">
+        <ForceGraph2D
+          ref={fgRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          graphData={filteredData}
+          nodeCanvasObject={paintNode}
+          linkCanvasObject={paintLink}
+          onNodeClick={handleNodeClick}
+          onNodeHover={handleNodeHover}
+          onNodeRightClick={handleContextMenu}
+          nodeRelSize={6}
+          linkDirectionalParticles={0}
+          cooldownTicks={100}
+          enableNodeDrag
+          enableZoomInteraction
+          enablePanInteraction
+          backgroundColor="hsl(222, 47%, 6%)"
+        />
+        <Minimap fgRef={fgRef} graphData={filteredData} />
+      </div>
+
+      {/* Tooltip */}
+      {hoveredNode && tooltipPos && (
+        <div
+          className="fixed z-50 bg-popover border rounded-lg shadow-lg px-3 py-2 pointer-events-none"
+          style={{ left: tooltipPos.x + 10, top: tooltipPos.y - 10 }}
+        >
+          {(() => {
+            const n = graphData.nodes.find((n) => n.id === hoveredNode);
+            if (!n) return null;
+            const cfg = NODE_CONFIG[n.type];
+            const conns = getConnections(n.id);
             return (
-              <>
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
-                    <span>{cfg.icon}</span>
-                    {selectedNode.label}
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="mt-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Badge style={{ background: cfg.bg, color: cfg.fg }}>{cfg.label}</Badge>
-                    {selectedNode.type === "document" && NODE_FILE_MAP[selectedNode.id] && (
-                      <Button size="sm" className="text-xs h-7" onClick={() => { setDetailOpen(false); navigate(`/doc/${encodeURIComponent(NODE_FILE_MAP[selectedNode.id])}`); }}>
-                        <FileText className="h-3 w-3 mr-1" /> 문서 상세 보기
-                      </Button>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" className="text-xs" onClick={() => { focusOnNode(selectedNode.id); setDetailOpen(false); }}>
-                    🔍 그래프에서 포커스
-                  </Button>
-                  <Separator />
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">연결된 노드 ({connections.length})</p>
-                    <div className="space-y-1.5">
-                      {connections.map(({ node: conn, edgeType }) => {
-                        const connCfg = NODE_CONFIG[conn.type];
-                        return (
-                          <button key={conn.id} onClick={() => setSelectedNode(conn)} className="flex items-center gap-2 w-full rounded-md border p-2 text-xs hover:bg-muted transition-colors text-left">
-                            <span>{connCfg.icon}</span>
-                            <span className="font-medium flex-1">{conn.label}</span>
-                            {edgeType && <Badge variant="secondary" className="text-[10px]">{EDGE_LABELS[edgeType] || edgeType}</Badge>}
-                            <Badge variant="outline" className="text-[10px]">{connCfg.label}</Badge>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </>
+              <div>
+                <p className="text-xs font-semibold flex items-center gap-1">
+                  <span>{cfg?.icon}</span> {n.label}
+                </p>
+                <p className="text-[10px] text-muted-foreground">{cfg?.label}</p>
+                {conns.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1">연결: {conns.length}개</p>
+                )}
+              </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[140px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+            onClick={() => {
+              focusOnNode(contextMenu.node.id);
+              setContextMenu(null);
+            }}
+          >
+            🔍 포커스
+          </button>
+          <button
+            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+            onClick={() => {
+              setSelectedNode(contextMenu.node);
+              setDetailOpen(true);
+              setContextMenu(null);
+            }}
+          >
+            📋 상세보기
+          </button>
+          {getNodeFilePath(contextMenu.node) && (
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+              onClick={() => {
+                const path = getNodeFilePath(contextMenu.node);
+                if (path) navigate(`/doc/${encodeURIComponent(path)}`);
+                setContextMenu(null);
+              }}
+            >
+              📄 문서 상세
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Detail sheet */}
+      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+        <SheetContent className="overflow-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              {selectedNode && (
+                <>
+                  <span>{NODE_CONFIG[selectedNode.type]?.icon}</span>
+                  {selectedNode.label}
+                </>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+          {selectedNode && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">유형</p>
+                <Badge variant="secondary">{NODE_CONFIG[selectedNode.type]?.label}</Badge>
+              </div>
+              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">연결된 노드</p>
+                <div className="space-y-2">
+                  {getConnections(selectedNode.id).map(({ node, edgeType }) => (
+                    <button
+                      key={node.id}
+                      className="w-full text-left flex items-center gap-2 rounded-md border p-2 text-xs hover:bg-muted transition-colors"
+                      onClick={() => {
+                        focusOnNode(node.id);
+                        setSelectedNode(node);
+                      }}
+                    >
+                      <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: NODE_CONFIG[node.type]?.bg }} />
+                      <span className="font-medium truncate">{node.label}</span>
+                      {edgeType && (
+                        <Badge variant="outline" className="ml-auto text-[10px] shrink-0">
+                          {EDGE_LABELS[edgeType] || edgeType}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {getNodeFilePath(selectedNode) && (
+                <>
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      const path = getNodeFilePath(selectedNode);
+                      if (path) navigate(`/doc/${encodeURIComponent(path)}`);
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1.5" /> 문서 상세 보기
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </div>

@@ -7,17 +7,55 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { getBrowseTree, getBrowseFiles } from "@/lib/api";
+import { projects as apiProjects, browse as apiBrowse } from "@/lib/wikiApi";
+import type { WikiChunk } from "@/lib/wikiApi";
 import type { FolderNode, BrowseFile } from "@/lib/types";
 import { FileTypeIcon } from "@/components/FileTypeIcon";
 import { Badge } from "@/components/ui/badge";
 import { MindMap } from "@/components/MindMap";
 import { KnowledgeGraphEmbed } from "@/components/KnowledgeGraphEmbed";
-import { MOCK_BROWSE_FILES } from "@/lib/mock-data";
+
+// Build FolderNode tree from project list + browse results
+function buildTreeFromProjects(projectList: { project_path: string; chunk_count: number; file_count: number }[]): FolderNode {
+  const root: FolderNode = { name: "컨설팅산출물", path: "", children: [], file_count: 0 };
+  projectList.forEach((p) => {
+    root.children.push({
+      name: p.project_path,
+      path: p.project_path,
+      children: [],
+      file_count: p.file_count,
+    });
+  });
+  return root;
+}
+
+function chunkToBrowseFile(c: WikiChunk): BrowseFile {
+  return {
+    file_path: c.file_path,
+    file_type: c.file_type as any,
+    doc_title: c.doc_title,
+    chunk_count: 1,
+    mtime: c.mtime,
+    project_path: c.project_path,
+  };
+}
+
+// Deduplicate files by file_path, summing chunk counts
+function deduplicateFiles(chunks: WikiChunk[]): BrowseFile[] {
+  const map = new Map<string, BrowseFile>();
+  chunks.forEach((c) => {
+    const existing = map.get(c.file_path);
+    if (existing) {
+      existing.chunk_count += 1;
+    } else {
+      map.set(c.file_path, chunkToBrowseFile(c));
+    }
+  });
+  return Array.from(map.values());
+}
 
 export default function BrowsePage() {
   const [tree, setTree] = useState<FolderNode | null>(null);
-  const [allFiles, setAllFiles] = useState<BrowseFile[]>([]);
   const [files, setFiles] = useState<BrowseFile[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>("");
   const [scopedSearch, setScopedSearch] = useState(false);
@@ -27,17 +65,20 @@ export default function BrowsePage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    getBrowseTree().then(setTree);
-    getBrowseFiles().then((f) => {
-      setAllFiles(f);
-      setFiles(f);
-    });
+    apiProjects().then((res) => {
+      const t = buildTreeFromProjects(res.projects);
+      setTree(t);
+    }).catch(() => {});
   }, []);
 
   const selectFolder = async (path: string) => {
     setSelectedPath(path);
-    const f = await getBrowseFiles(path);
-    setFiles(f);
+    try {
+      const res = await apiBrowse({ project: path || undefined, limit: 100 });
+      setFiles(deduplicateFiles(res.results));
+    } catch {
+      setFiles([]);
+    }
   };
 
   const doScopedSearch = () => {
@@ -53,26 +94,14 @@ export default function BrowsePage() {
       <div className="border-b bg-background px-4 pt-3 pb-0">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "tree" | "mindmap" | "knowledge-graph")}>
           <TabsList className="bg-transparent h-auto p-0 gap-0">
-            <TabsTrigger
-              value="tree"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-            >
-              <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-              폴더 탐색
+            <TabsTrigger value="tree" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
+              <FolderOpen className="h-3.5 w-3.5 mr-1.5" /> 폴더 탐색
             </TabsTrigger>
-            <TabsTrigger
-              value="mindmap"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-            >
-              <GitBranchPlus className="h-3.5 w-3.5 mr-1.5" />
-              마인드맵
+            <TabsTrigger value="mindmap" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
+              <GitBranchPlus className="h-3.5 w-3.5 mr-1.5" /> 마인드맵
             </TabsTrigger>
-            <TabsTrigger
-              value="knowledge-graph"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-            >
-              <Network className="h-3.5 w-3.5 mr-1.5" />
-              지식 그래프
+            <TabsTrigger value="knowledge-graph" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
+              <Network className="h-3.5 w-3.5 mr-1.5" /> 지식 그래프
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -80,31 +109,17 @@ export default function BrowsePage() {
 
       {viewMode === "tree" ? (
         <div className="flex flex-1 overflow-hidden">
-          {/* Tree Panel */}
           <aside className="w-72 shrink-0 border-r bg-card overflow-auto">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-primary" />
-                  폴더 탐색
+                  <FolderOpen className="h-4 w-4 text-primary" /> 폴더 탐색
                 </h2>
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    title="전체 펼치기"
-                    onClick={() => setTreeExpandAll(true)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-6 w-6" title="전체 펼치기" onClick={() => setTreeExpandAll(true)}>
                     <ChevronsUpDown className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    title="전체 접기"
-                    onClick={() => setTreeExpandAll(false)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-6 w-6" title="전체 접기" onClick={() => setTreeExpandAll(false)}>
                     <ChevronsDownUp className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -113,19 +128,12 @@ export default function BrowsePage() {
             </div>
           </aside>
 
-          {/* File List */}
           <div className="flex-1 overflow-auto">
             <div className="border-b bg-background/95 backdrop-blur p-4">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && doScopedSearch()}
-                    placeholder="키워드 검색..."
-                    className="pl-9"
-                  />
+                  <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doScopedSearch()} placeholder="키워드 검색..." className="pl-9" />
                 </div>
                 <Button size="sm" onClick={doScopedSearch}>검색</Button>
                 {selectedPath && (
@@ -150,11 +158,7 @@ export default function BrowsePage() {
               ) : (
                 <div className="space-y-2">
                   {files.map((f) => (
-                    <Card
-                      key={f.file_path}
-                      className="cursor-pointer transition-shadow hover:shadow-md"
-                      onClick={() => navigate(`/doc/${encodeURIComponent(f.file_path)}`)}
-                    >
+                    <Card key={f.file_path} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => navigate(`/doc/${encodeURIComponent(f.file_path)}`)}>
                       <CardContent className="flex items-center gap-3 p-3">
                         <FileTypeIcon type={f.file_type} className="h-5 w-5 shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -175,7 +179,7 @@ export default function BrowsePage() {
         </div>
       ) : viewMode === "mindmap" ? (
         <div className="flex-1 overflow-hidden bg-[hsl(222,47%,6%)] rounded-b-xl">
-          {tree && <MindMap tree={tree} files={MOCK_BROWSE_FILES} />}
+          {tree && <MindMap tree={tree} files={files} />}
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { FolderNode, BrowseFile } from "@/lib/types";
-import { getChunksByFile } from "@/lib/api";
+import { doc as apiDoc } from "@/lib/wikiApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ZoomIn, ZoomOut, Maximize, Minus, Plus, Search, X, ChevronUp, ChevronDown } from "lucide-react";
@@ -277,9 +277,9 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     if (!filePopup) { setPreviewText(null); return; }
     setPreviewLoading(true);
     setPreviewText(null);
-    getChunksByFile(filePopup.node.path).then((chunks) => {
-      if (chunks.length > 0) {
-        setPreviewText(chunks[0].text.substring(0, 300));
+    apiDoc(filePopup.node.path).then((docDetail) => {
+      if (docDetail && (docDetail.text || docDetail.snippet)) {
+        setPreviewText((docDetail.text || docDetail.snippet || "").substring(0, 300));
       } else {
         setPreviewText("(미리보기 텍스트 없음)");
       }
