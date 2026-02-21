@@ -50,41 +50,42 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
   const stripeColors = ["project-stripe-1", "project-stripe-2", "project-stripe-3", "project-stripe-4", "project-stripe-5"];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Search Bar */}
       <div className="flex items-stretch rounded-lg border bg-card shadow-sm overflow-hidden">
-        <div className="flex items-center pl-4 text-muted-foreground">
-          <Search className="h-5 w-5" />
+        <div className="flex items-center pl-3 sm:pl-4 text-muted-foreground">
+          <Search className="h-4 w-4 sm:h-5 sm:w-5" />
         </div>
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="검색어를 입력하세요 (예: 보건복지부, 데이터 거버넌스, AI 도입...)"
-          className="flex-1 border-0 h-12 text-base px-4 focus-visible:ring-0 bg-transparent"
+          placeholder="검색어를 입력하세요..."
+          className="flex-1 border-0 h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 focus-visible:ring-0 bg-transparent"
         />
-        <Button variant="ghost" onClick={() => navigate("/advanced-search")} className="h-12 px-3 text-muted-foreground hover:text-primary rounded-none border-l">
+        <Button variant="ghost" onClick={() => navigate("/advanced-search")} className="hidden sm:flex h-10 sm:h-12 px-3 text-muted-foreground hover:text-primary rounded-none border-l">
           <SlidersHorizontal className="h-4 w-4 mr-1" /> 상세
         </Button>
-        <Button onClick={handleSearch} className="h-12 px-6 rounded-none text-base font-semibold bg-primary hover:bg-primary/90">
+        <Button onClick={handleSearch} className="h-10 sm:h-12 px-4 sm:px-6 rounded-none text-sm sm:text-base font-semibold bg-primary hover:bg-primary/90">
           검색
         </Button>
       </div>
 
       {/* Hero Banner */}
-      <div className="rounded-xl p-6 text-white" style={{ background: "linear-gradient(135deg, hsl(221 83% 53%), hsl(262 67% 55%))" }}>
+      <div className="rounded-xl p-4 sm:p-6 text-white" style={{ background: "linear-gradient(135deg, hsl(221 83% 53%), hsl(262 67% 55%))" }}>
         <div className="flex items-center gap-2 mb-2">
-          <Badge className="bg-white/20 text-white border-0 text-xs">v2.0 NEW</Badge>
-          <span className="text-sm text-white/80">자동 메타데이터 태깅 · DBpia 스타일</span>
+          <Badge className="bg-white/20 text-white border-0 text-[10px] sm:text-xs">v2.0 NEW</Badge>
+          <span className="text-xs sm:text-sm text-white/80 hidden sm:inline">자동 메타데이터 태깅 · DBpia 스타일</span>
         </div>
-        <h2 className="text-2xl font-bold mb-2">컨설팅 산출물 지식 검색 플랫폼</h2>
-        <p className="text-sm text-white/80 mb-4 max-w-2xl">
-          Google Drive의 PPT, PDF, 엑셀 등 산출물의 <strong className="text-white">내부 텍스트</strong>까지 검색하고,<br />
-          <strong className="text-white">자동 태깅된 메타데이터</strong>로 주제 · 기관 · 단계별 탐색이 가능합니다.
+        <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">컨설팅 산출물 지식 검색 플랫폼</h2>
+        <p className="text-xs sm:text-sm text-white/80 mb-3 sm:mb-4 max-w-2xl leading-relaxed">
+          Google Drive의 PPT, PDF, 엑셀 등 산출물의 <strong className="text-white">내부 텍스트</strong>까지 검색하고,
+          <span className="hidden sm:inline"><br /></span>
+          <strong className="text-white"> 자동 태깅된 메타데이터</strong>로 주제 · 기관 · 단계별 탐색이 가능합니다.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {QUICK_SEARCHES.map((s) => (
-            <Button key={s} variant="secondary" size="sm" className="bg-white/20 text-white border-0 hover:bg-white/30 text-xs h-7" onClick={() => { setQuery(s); onSearch(s); }}>
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          {QUICK_SEARCHES.slice(0, window.innerWidth < 640 ? 3 : 5).map((s) => (
+            <Button key={s} variant="secondary" size="sm" className="bg-white/20 text-white border-0 hover:bg-white/30 text-[10px] sm:text-xs h-6 sm:h-7 px-2 sm:px-3" onClick={() => { setQuery(s); onSearch(s); }}>
               <Search className="h-3 w-3 mr-1" /> {s}
             </Button>
           ))}
@@ -92,51 +93,51 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <Layers className="h-5 w-5 text-blue-500 mb-2" />
-            <p className="text-2xl font-bold">{liveStats?.total_chunks?.toLocaleString() ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">문서 청크</p>
+          <CardContent className="p-3 sm:p-4">
+            <Layers className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 mb-1 sm:mb-2" />
+            <p className="text-xl sm:text-2xl font-bold">{liveStats?.total_chunks?.toLocaleString() ?? "—"}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">문서 청크</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <FileText className="h-5 w-5 text-green-500 mb-2" />
-            <p className="text-2xl font-bold">{liveStats?.total_files?.toLocaleString() ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">파일 수</p>
+          <CardContent className="p-3 sm:p-4">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mb-1 sm:mb-2" />
+            <p className="text-xl sm:text-2xl font-bold">{liveStats?.total_files?.toLocaleString() ?? "—"}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">파일 수</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
-            <Tag className="h-5 w-5 text-orange-500 mb-2" />
-            <p className="text-2xl font-bold">{cats.length || topTags.length || "—"}</p>
-            <p className="text-xs text-muted-foreground">주제분류</p>
+          <CardContent className="p-3 sm:p-4">
+            <Tag className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 mb-1 sm:mb-2" />
+            <p className="text-xl sm:text-2xl font-bold">{cats.length || topTags.length || "—"}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">주제분류</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-4">
-            <FolderOpen className="h-5 w-5 text-purple-500 mb-2" />
-            <p className="text-2xl font-bold">{projects.length || "—"}</p>
-            <p className="text-xs text-muted-foreground">프로젝트</p>
+          <CardContent className="p-3 sm:p-4">
+            <FolderOpen className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500 mb-1 sm:mb-2" />
+            <p className="text-xl sm:text-2xl font-bold">{projects.length || "—"}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">프로젝트</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Three Column Section: Popular Tags, Categories, Popular Docs */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
         {/* Popular Tags */}
         <Card>
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Tag className="h-4 w-4 text-primary" /> 인기 태그
+          <CardContent className="p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-2">
+              <Tag className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> 인기 태그
             </h3>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
               {(liveStats?.by_category || []).slice(0, 15).map((t) => (
                 <Badge
                   key={t.category}
                   variant="outline"
-                  className="cursor-pointer hover:bg-primary/10 text-xs"
+                  className="cursor-pointer hover:bg-primary/10 text-[10px] sm:text-xs"
                   onClick={() => { setQuery(t.category); onSearch(t.category); }}
                 >
                   {t.category} {t.count}
@@ -146,7 +147,7 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
                 <Badge
                   key={s.doc_stage}
                   variant="secondary"
-                  className="cursor-pointer hover:bg-primary/10 text-xs"
+                  className="cursor-pointer hover:bg-primary/10 text-[10px] sm:text-xs"
                   onClick={() => { setQuery(s.doc_stage); onSearch(s.doc_stage); }}
                 >
                   {s.doc_stage} {s.count}
@@ -158,15 +159,15 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
 
         {/* Categories */}
         <Card>
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-orange-500" /> 주제분류
+          <CardContent className="p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-500" /> 주제분류
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               {cats.map((c) => (
                 <div key={c.category} className="flex items-center justify-between cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5" onClick={() => { setQuery(c.category); onSearch(c.category); }}>
                   <CategoryBadge category={c.category} />
-                  <span className="text-xs text-muted-foreground">{c.count}건</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">{c.count}건</span>
                 </div>
               ))}
             </div>
@@ -175,26 +176,26 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
 
         {/* Popular Docs */}
         <Card>
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Eye className="h-4 w-4 text-red-500" /> 인기 문서
+          <CardContent className="p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-2">
+              <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500" /> 인기 문서
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               {popularDocs.map((doc, i) => (
                 <div
                   key={doc.chunk_id}
                   className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-1"
                   onClick={() => navigate(`/doc/${encodeURIComponent(doc.chunk_id)}`)}
                 >
-                  <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}</span>
+                  <span className="text-[10px] sm:text-xs font-bold text-muted-foreground w-4">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate font-medium">{doc.doc_title}</p>
+                    <p className="text-xs sm:text-sm truncate font-medium">{doc.doc_title}</p>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <FileTypeBadge type={doc.file_type as any} className="text-[9px] px-1 py-0" />
-                      <span className="text-[10px] text-muted-foreground truncate">{doc.project_path}</span>
+                      <FileTypeBadge type={doc.file_type as any} className="text-[8px] sm:text-[9px] px-1 py-0" />
+                      <span className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{doc.project_path}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground flex items-center gap-0.5">
                     <Eye className="h-3 w-3" /> {doc.view_count}
                   </span>
                 </div>
@@ -207,15 +208,15 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
       {/* Projects List */}
       {projects.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <FolderOpen className="h-4 w-4 text-primary" /> 프로젝트(사업) 목록
+          <h3 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-2">
+            <FolderOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> 프로젝트(사업) 목록
           </h3>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
             {projects.map((p, i) => (
               <Card key={p.project_path} className={`cursor-pointer hover:shadow-md transition-shadow ${stripeColors[i % stripeColors.length]}`} onClick={() => navigate(`/browse?project=${encodeURIComponent(p.project_path)}`)}>
-                <CardContent className="p-4">
-                  <p className="font-medium text-sm mb-1">{p.project_path}</p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <CardContent className="p-3 sm:p-4">
+                  <p className="font-medium text-xs sm:text-sm mb-1">{p.project_path}</p>
+                  <div className="flex items-center gap-3 text-[10px] sm:text-xs text-muted-foreground">
                     <span>📄 {p.file_count} files</span>
                     <span>📦 {p.chunk_count} chunks</span>
                   </div>
