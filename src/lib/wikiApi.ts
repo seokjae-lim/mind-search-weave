@@ -297,9 +297,22 @@ function buildParams(filters: Record<string, any>): string {
 
 export async function search(filters: SearchFilters): Promise<WikiSearchResponse> {
   const q = (filters.q || "").toLowerCase();
-  const fallbackResults = DEMO_CHUNKS.filter(
+  let fallbackResults = DEMO_CHUNKS.filter(
     (c) => c.doc_title.toLowerCase().includes(q) || c.category.toLowerCase().includes(q) || c.tags.toLowerCase().includes(q)
   );
+  // Apply demo filters for type, project, category
+  if (filters.type) {
+    fallbackResults = fallbackResults.filter((c) => c.file_type === filters.type);
+  }
+  if (filters.project) {
+    fallbackResults = fallbackResults.filter((c) => c.project_path === filters.project);
+  }
+  if (filters.category) {
+    fallbackResults = fallbackResults.filter((c) => c.category === filters.category);
+  }
+  if (filters.org) {
+    fallbackResults = fallbackResults.filter((c) => c.org === filters.org);
+  }
   const fallback: WikiSearchResponse = {
     results: fallbackResults, total: fallbackResults.length, page: 1, limit: 20, query: filters.q,
   };
