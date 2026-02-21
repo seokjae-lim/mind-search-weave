@@ -1,7 +1,7 @@
 import {
   Search,
   FileSearch,
-  FilePlus,
+  Workflow,
   BookOpen,
   FileText,
   History,
@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Pen,
   Sparkles,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,8 +18,8 @@ export interface QuickAction {
   title: string;
   description: string;
   icon: LucideIcon;
-  route?: string;          // internal route
-  externalUrl?: string;     // external link (new tab)
+  route?: string;
+  externalUrl?: string;
   category: "internal" | "external";
 }
 
@@ -35,33 +36,17 @@ export const internalActions: QuickAction[] = [
   {
     id: "rfp-analysis",
     title: "RFP / 요구사항 분석",
-    description: "제안요청서를 업로드하면 핵심 요구사항을 자동으로 추출합니다.",
+    description: "제안요청서를 업로드하면 6단계 심층 분석을 자동으로 수행합니다.",
     icon: FileSearch,
     route: "/assistant/analysis",
     category: "internal",
   },
   {
-    id: "proposal-draft",
-    title: "제안서 초안 생성",
-    description: "분석된 요구사항을 기반으로 제안서 초안을 자동 생성합니다.",
-    icon: FilePlus,
-    route: "/assistant/proposal",
-    category: "internal",
-  },
-  {
-    id: "deep-research",
-    title: "요구사항별 자료조사",
-    description: "요구사항별 딥리서치를 수행하여 근거 자료를 수집합니다.",
-    icon: BookOpen,
-    route: "/assistant/research",
-    category: "internal",
-  },
-  {
-    id: "deliverables",
-    title: "산출물 생성",
-    description: "보고서·PPT·요약본 등 산출물을 자동으로 작성합니다.",
-    icon: FileText,
-    route: "/assistant/deliverables",
+    id: "proposal-workflow",
+    title: "통합 제안서 워크플로우",
+    description: "요구사항 추출 → 5단계 딥리서치 → 제안서 초안 → 통합 문서를 한 곳에서 관리합니다.",
+    icon: Workflow,
+    route: "/assistant/workflow",
     category: "internal",
   },
   {
@@ -70,6 +55,14 @@ export const internalActions: QuickAction[] = [
     description: "이전 분석·생성 결과를 조회하고 재활용합니다.",
     icon: History,
     route: "/assistant/history",
+    category: "internal",
+  },
+  {
+    id: "settings",
+    title: "AI 모델 설정",
+    description: "외부 AI 모델 API 키를 관리합니다.",
+    icon: Settings,
+    route: "/assistant/settings",
     category: "internal",
   },
 ];
