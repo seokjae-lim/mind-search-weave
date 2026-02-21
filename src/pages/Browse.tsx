@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderOpen, ChevronRight, ChevronDown, File, Search, LayoutGrid, GitBranchPlus, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { FolderOpen, ChevronRight, ChevronDown, File, Search, LayoutGrid, GitBranchPlus, ChevronsUpDown, ChevronsDownUp, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,14 @@ export default function BrowsePage() {
             >
               <GitBranchPlus className="h-3.5 w-3.5 mr-1.5" />
               마인드맵
+            </TabsTrigger>
+            <TabsTrigger
+              value="knowledge-graph"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              onClick={() => navigate("/knowledge-graph")}
+            >
+              <Network className="h-3.5 w-3.5 mr-1.5" />
+              지식 그래프
             </TabsTrigger>
           </TabsList>
         </Tabs>
