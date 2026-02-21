@@ -12,6 +12,7 @@ import type { FolderNode, BrowseFile } from "@/lib/types";
 import { FileTypeIcon } from "@/components/FileTypeIcon";
 import { Badge } from "@/components/ui/badge";
 import { MindMap } from "@/components/MindMap";
+import { KnowledgeGraphEmbed } from "@/components/KnowledgeGraphEmbed";
 import { MOCK_BROWSE_FILES } from "@/lib/mock-data";
 
 export default function BrowsePage() {
@@ -21,7 +22,7 @@ export default function BrowsePage() {
   const [selectedPath, setSelectedPath] = useState<string>("");
   const [scopedSearch, setScopedSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"tree" | "mindmap">("tree");
+  const [viewMode, setViewMode] = useState<"tree" | "mindmap" | "knowledge-graph">("tree");
   const [treeExpandAll, setTreeExpandAll] = useState<boolean | null>(null);
   const navigate = useNavigate();
 
@@ -50,7 +51,7 @@ export default function BrowsePage() {
     <div className="flex flex-col h-full">
       {/* View mode tabs */}
       <div className="border-b bg-background px-4 pt-3 pb-0">
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "tree" | "mindmap")}>
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "tree" | "mindmap" | "knowledge-graph")}>
           <TabsList className="bg-transparent h-auto p-0 gap-0">
             <TabsTrigger
               value="tree"
@@ -69,7 +70,6 @@ export default function BrowsePage() {
             <TabsTrigger
               value="knowledge-graph"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              onClick={() => navigate("/knowledge-graph")}
             >
               <Network className="h-3.5 w-3.5 mr-1.5" />
               지식 그래프
@@ -173,9 +173,13 @@ export default function BrowsePage() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : viewMode === "mindmap" ? (
         <div className="flex-1 overflow-hidden bg-[hsl(222,47%,6%)] rounded-b-xl">
           {tree && <MindMap tree={tree} files={MOCK_BROWSE_FILES} />}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-hidden">
+          <KnowledgeGraphEmbed showHeader={false} />
         </div>
       )}
     </div>
