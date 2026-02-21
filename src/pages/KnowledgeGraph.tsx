@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,6 +31,15 @@ const EDGE_LABELS: Record<GraphEdgeType, string> = {
   GENERATED_FROM: "생성원",
   BELONGS_TO: "소속",
   TAGGED: "태그",
+};
+
+// Map node IDs to file paths for navigation
+const NODE_FILE_MAP: Record<string, string> = {
+  d1: "국가중점데이터/최종보고.pptx",
+  d2: "국가중점데이터/기관현황조사.pdf",
+  d3: "디지털플랫폼정부/DPG_제안서_v3.pptx",
+  d4: "AI분석플랫폼/AI플랫폼_제안서.pptx",
+  d5: "스마트시티/스마트시티_ISP.pptx",
 };
 
 // ─── Mock graph data (expanded ontology) ───
@@ -100,6 +110,7 @@ const MOCK_GRAPH: GraphData = {
 };
 
 export default function KnowledgeGraphPage() {
+  const navigate = useNavigate();
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -353,7 +364,22 @@ export default function KnowledgeGraphPage() {
                   </SheetTitle>
                 </SheetHeader>
                 <div className="mt-4 space-y-4">
-                  <Badge style={{ background: cfg.bg, color: cfg.fg }}>{cfg.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge style={{ background: cfg.bg, color: cfg.fg }}>{cfg.label}</Badge>
+                    {selectedNode.type === "document" && NODE_FILE_MAP[selectedNode.id] && (
+                      <Button
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => {
+                          setDetailOpen(false);
+                          navigate(`/doc/${encodeURIComponent(NODE_FILE_MAP[selectedNode.id])}`);
+                        }}
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        문서 상세 보기
+                      </Button>
+                    )}
+                  </div>
                   <Separator />
                   <div>
                     <p className="text-xs text-muted-foreground mb-2">연결된 노드 ({connections.length})</p>
