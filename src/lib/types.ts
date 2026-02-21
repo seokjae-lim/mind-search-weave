@@ -112,10 +112,14 @@ export interface AIChatReference {
 }
 
 // ─── Knowledge Graph Types ───
+export type GraphNodeType = "project" | "document" | "slide" | "institution" | "system" | "strategy" | "dataset" | "keyword" | "tag";
+
+export type GraphEdgeType = "HAS_DOCUMENT" | "MENTIONS" | "APPLIES_STRATEGY" | "RELATED_TO" | "GENERATED_FROM" | "BELONGS_TO" | "TAGGED";
+
 export interface GraphNode {
   id: string;
   label: string;
-  type: "document" | "keyword" | "project" | "tag";
+  type: GraphNodeType;
   val?: number;
   color?: string;
 }
@@ -124,6 +128,7 @@ export interface GraphLink {
   source: string;
   target: string;
   label?: string;
+  type?: GraphEdgeType;
 }
 
 export interface GraphData {
