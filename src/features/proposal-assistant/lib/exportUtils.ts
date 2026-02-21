@@ -672,3 +672,120 @@ export function exportProposalToExcel(
 
   XLSX.writeFile(wb, `${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.xlsx`);
 }
+
+// ── Markdown Export ──
+
+function renderDataToMarkdown(data: Record<string, unknown>, indent = ""): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "step_title") continue;
+    const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    if (typeof value === "string") {
+      parts.push(`${indent}**${label}**\n\n${indent}${value}`);
+    } else if (Array.isArray(value)) {
+      const items = value.map(v => `${indent}- ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
+      parts.push(`${indent}**${label}**\n\n${items}`);
+    } else if (typeof value === "object" && value !== null) {
+      parts.push(`${indent}**${label}**\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``);
+    }
+  }
+  return parts.join("\n\n");
+}
+
+export function exportProposalToMarkdown(
+  project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
+  sections: ExportSection[]
+) {
+  const dateStr = new Date(project.created_at).toLocaleString("ko-KR");
+  const lines: string[] = [];
+
+  lines.push(`# ${project.title}`);
+  lines.push(`\n> 모델: ${project.model} | 생성일: ${dateStr}\n`);
+  lines.push(`---\n`);
+
+  // Table of Contents
+  lines.push(`## 목차\n`);
+  let tocNum = 1;
+  for (const sec of sections) {
+    const deep = sec.research_data as Record<string, unknown> | null;
+    const steps = deep?.steps as Record<string, { status: string; data: Record<string, unknown> | null }> | undefined;
+    if (steps) {
+      lines.push(`${tocNum}. [${sec.requirement_number}] 딥리서치 - ${sec.requirement_title}`);
+      tocNum++;
+    }
+    if (sec.draft_content) {
+      lines.push(`${tocNum}. [${sec.requirement_number}] 제안서 초안 - ${sec.requirement_title}`);
+      tocNum++;
+    }
+    const completedDelivs = (sec.deliverables || []).filter(d => d.status === "completed");
+    if (completedDelivs.length > 0) {
+      lines.push(`${tocNum}. [${sec.requirement_number}] 산출물 - ${sec.requirement_title}`);
+      tocNum++;
+    }
+  }
+  if (project.merged_document) {
+    lines.push(`${tocNum}. 통합 제안서`);
+  }
+  lines.push("");
+
+  // Content
+  for (const sec of sections) {
+    const deep = sec.research_data as Record<string, unknown> | null;
+    const steps = deep?.steps as Record<string, { status: string; data: Record<string, unknown> | null }> | undefined;
+
+    // Deep Research
+    if (steps) {
+      lines.push(`\n---\n`);
+      lines.push(`## [${sec.requirement_number}] 딥리서치: ${sec.requirement_title}\n`);
+      if (sec.requirement_description) {
+        lines.push(`> ${sec.requirement_description}\n`);
+      }
+
+      for (const stepKey of RESEARCH_STEP_KEYS) {
+        const stepInfo = steps[stepKey];
+        if (!stepInfo?.data || stepInfo.status !== "completed") continue;
+        const stepLabel = RESEARCH_STEP_LABELS[stepKey] || stepKey;
+        lines.push(`### Step: ${stepLabel}\n`);
+        lines.push(renderDataToMarkdown(stepInfo.data));
+        lines.push("");
+      }
+    }
+
+    // Draft
+    if (sec.draft_content) {
+      lines.push(`\n---\n`);
+      lines.push(`## [${sec.requirement_number}] 제안서 초안: ${sec.requirement_title}\n`);
+      lines.push(renderDataToMarkdown(sec.draft_content));
+      lines.push("");
+    }
+
+    // Deliverables
+    const completedDelivs = (sec.deliverables || []).filter(d => d.status === "completed");
+    if (completedDelivs.length > 0) {
+      lines.push(`\n---\n`);
+      lines.push(`## [${sec.requirement_number}] 산출물: ${sec.requirement_title}\n`);
+      for (const deliv of completedDelivs) {
+        const typeLabel = DELIVERABLE_TYPE_LABELS[deliv.deliverable_type] || deliv.deliverable_type;
+        lines.push(`### ${typeLabel}: ${deliv.title}\n`);
+        lines.push(renderDataToMarkdown(deliv.content));
+        lines.push("");
+      }
+    }
+  }
+
+  // Merged document
+  if (project.merged_document) {
+    lines.push(`\n---\n`);
+    lines.push(`## 통합 제안서\n`);
+    lines.push(renderDataToMarkdown(project.merged_document));
+  }
+
+  const markdown = lines.join("\n");
+  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
