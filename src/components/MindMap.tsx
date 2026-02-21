@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { FolderNode, BrowseFile } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, Maximize, Minus, Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ZoomIn, ZoomOut, Maximize, Minus, Plus, Search, X, ChevronUp, ChevronDown } from "lucide-react";
 
 // ─── Types ───
 interface MindMapNode {
@@ -13,7 +14,6 @@ interface MindMapNode {
   fileCount: number;
   depth: number;
   expanded: boolean;
-  // Layout (computed)
   x: number;
   y: number;
   targetX: number;
@@ -22,12 +22,12 @@ interface MindMapNode {
 
 // ─── Color palette per depth ───
 const DEPTH_COLORS = [
-  "hsl(234, 89%, 64%)",   // root — indigo
-  "hsl(262, 83%, 58%)",   // depth 1 — purple
-  "hsl(199, 89%, 48%)",   // depth 2 — blue
-  "hsl(160, 84%, 39%)",   // depth 3 — green
-  "hsl(38, 92%, 50%)",    // depth 4 — amber
-  "hsl(340, 82%, 52%)",   // depth 5 — pink
+  "hsl(234, 89%, 64%)",
+  "hsl(262, 83%, 58%)",
+  "hsl(199, 89%, 48%)",
+  "hsl(160, 84%, 39%)",
+  "hsl(38, 92%, 50%)",
+  "hsl(340, 82%, 52%)",
 ];
 
 const getColor = (depth: number) => DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
@@ -36,7 +36,6 @@ const getColor = (depth: number) => DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.le
 function buildMindMapTree(node: FolderNode, depth = 0, files?: BrowseFile[]): MindMapNode {
   const fileNodes: MindMapNode[] = [];
 
-  // Add actual file nodes for leaf folders
   if (files && node.file_count > 0) {
     const folderFiles = files.filter((f) => {
       const dir = f.file_path.substring(0, f.file_path.lastIndexOf("/"));
@@ -106,7 +105,6 @@ function layoutTree(root: MindMapNode, centerX: number, centerY: number) {
 
   if (root.expanded && root.children.length > 0) {
     const count = root.children.length;
-    // Dynamic radius based on child count
     const baseRadius = Math.max(200, count * 35);
     const fullAngle = Math.PI * 2;
     const totalWeight = root.children.reduce((s, c) => s + countVisibleDescendants(c), 0);
@@ -127,14 +125,13 @@ function layoutTree(root: MindMapNode, centerX: number, centerY: number) {
     });
   }
 
-  // Collision resolution pass
   resolveCollisions(root);
 }
 
 // ─── Collision resolution ───
 function resolveCollisions(root: MindMapNode) {
   const visible = collectVisible(root);
-  const minDist = 90; // minimum distance between node centers
+  const minDist = 90;
 
   for (let iter = 0; iter < 5; iter++) {
     let moved = false;
@@ -142,7 +139,7 @@ function resolveCollisions(root: MindMapNode) {
       for (let j = i + 1; j < visible.length; j++) {
         const a = visible[i];
         const b = visible[j];
-        if (a.depth === 0 || b.depth === 0) continue; // don't push root
+        if (a.depth === 0 || b.depth === 0) continue;
 
         const dx = b.targetX - a.targetX;
         const dy = b.targetY - a.targetY;
@@ -188,6 +185,23 @@ function collectVisible(node: MindMapNode): MindMapNode[] {
   return result;
 }
 
+// ─── All nodes collector (including collapsed) ───
+function collectAll(node: MindMapNode): MindMapNode[] {
+  const result = [node];
+  node.children.forEach((c) => result.push(...collectAll(c)));
+  return result;
+}
+
+// ─── Find path from root to a target node ───
+function findPathToNode(root: MindMapNode, targetId: string): MindMapNode[] | null {
+  if (root.id === targetId) return [root];
+  for (const child of root.children) {
+    const path = findPathToNode(child, targetId);
+    if (path) return [root, ...path];
+  }
+  return null;
+}
+
 // ─── Component ───
 interface MindMapProps {
   tree: FolderNode;
@@ -208,6 +222,12 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const [, forceUpdate] = useState(0);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
 
   // Build tree
   useEffect(() => {
@@ -234,6 +254,76 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  // ─── Search logic ───
+  const navigateToResult = useCallback((nodeId: string) => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const path = findPathToNode(root, nodeId);
+    if (!path) return;
+
+    // Highlight all nodes on path
+    const pathIds = new Set(path.map((n) => n.id));
+    setHighlightedIds(pathIds);
+
+    // Expand all ancestors
+    path.forEach((n, i) => {
+      if (i < path.length - 1) n.expanded = true;
+    });
+
+    layoutTree(root, dimensions.width / 2, dimensions.height / 2);
+
+    // Pan to center on target
+    const target = path[path.length - 1];
+    setTimeout(() => {
+      const cx = dimensions.width / 2;
+      const cy = dimensions.height / 2;
+      setPan({ x: cx - target.targetX * zoom, y: cy - target.targetY * zoom });
+      forceUpdate((n) => n + 1);
+    }, 50);
+  }, [dimensions, zoom]);
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (!query.trim() || !rootRef.current) {
+      setSearchResults([]);
+      setHighlightedIds(new Set());
+      setActiveResultIndex(0);
+      forceUpdate((n) => n + 1);
+      return;
+    }
+
+    const allNodes = collectAll(rootRef.current);
+    const q = query.toLowerCase();
+    const matches = allNodes
+      .filter((n) => n.label.toLowerCase().includes(q) || n.path.toLowerCase().includes(q))
+      .map((n) => n.id);
+
+    setSearchResults(matches);
+    setActiveResultIndex(0);
+
+    if (matches.length > 0) {
+      navigateToResult(matches[0]);
+    } else {
+      setHighlightedIds(new Set());
+    }
+  }, [navigateToResult]);
+
+  const goToResult = useCallback((index: number) => {
+    if (searchResults.length === 0) return;
+    const i = ((index % searchResults.length) + searchResults.length) % searchResults.length;
+    setActiveResultIndex(i);
+    navigateToResult(searchResults[i]);
+  }, [searchResults, navigateToResult]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setHighlightedIds(new Set());
+    setActiveResultIndex(0);
+    forceUpdate((n) => n + 1);
+  }, []);
+
   // Render loop
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -248,7 +338,6 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     canvas.height = dimensions.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // Clear
     ctx.clearRect(0, 0, dimensions.width, dimensions.height);
     ctx.save();
     ctx.translate(pan.x, pan.y);
@@ -264,16 +353,18 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         ctx.beginPath();
         ctx.moveTo(node.x, node.y);
 
-        // Curved line
         const mx = (node.x + child.x) / 2;
         const my = (node.y + child.y) / 2;
         ctx.quadraticCurveTo(mx + (child.y - node.y) * 0.1, my - (child.x - node.x) * 0.1, child.x, child.y);
 
+        const isHighlightPath = highlightedIds.has(child.id) && highlightedIds.has(node.id);
         const isHoverPath = hoveredId === child.id || hoveredId === node.id;
-        ctx.strokeStyle = isHoverPath
-          ? getColor(child.depth)
-          : `${getColor(child.depth)}44`;
-        ctx.lineWidth = isHoverPath ? 2.5 / zoom : 1.5 / zoom;
+        ctx.strokeStyle = isHighlightPath
+          ? "hsl(45, 100%, 60%)"
+          : isHoverPath
+            ? getColor(child.depth)
+            : `${getColor(child.depth)}44`;
+        ctx.lineWidth = isHighlightPath ? 3 / zoom : isHoverPath ? 2.5 / zoom : 1.5 / zoom;
         ctx.stroke();
       });
     });
@@ -283,12 +374,13 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       const isFile = node.id.startsWith("file:");
       const isHovered = hoveredId === node.id;
       const isRoot = node.depth === 0;
+      const isHighlighted = highlightedIds.has(node.id);
+      const isActiveResult = searchResults.length > 0 && searchResults[activeResultIndex] === node.id;
       const color = getColor(node.depth);
 
-      // Node bubble
       const label = node.label;
       const fontSize = isRoot ? 14 / zoom : Math.max(11 / zoom, 8);
-      ctx.font = `${isHovered || isRoot ? "600" : "400"} ${fontSize}px -apple-system, "Pretendard", sans-serif`;
+      ctx.font = `${isHovered || isRoot || isActiveResult ? "600" : "400"} ${fontSize}px -apple-system, "Pretendard", sans-serif`;
       const textWidth = ctx.measureText(label).width;
       const paddingX = isRoot ? 20 : 14;
       const paddingY = isRoot ? 10 : 7;
@@ -297,33 +389,41 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       const radius = isRoot ? 12 : 8;
 
       // Shadow
-      if (isHovered || isRoot) {
-        ctx.shadowColor = `${color}55`;
-        ctx.shadowBlur = isHovered ? 16 : 8;
+      if (isHovered || isRoot || isActiveResult) {
+        ctx.shadowColor = isActiveResult ? "hsl(45, 100%, 60%)" : `${color}55`;
+        ctx.shadowBlur = isActiveResult ? 20 : isHovered ? 16 : 8;
         ctx.shadowOffsetY = 2;
       }
 
       // Background
       ctx.beginPath();
       ctx.roundRect(node.x - boxW / 2, node.y - boxH / 2, boxW, boxH, radius);
-      ctx.fillStyle = isRoot
-        ? color
-        : isHovered
+      ctx.fillStyle = isActiveResult
+        ? "hsl(45, 90%, 45%)"
+        : isRoot
           ? color
-          : isFile
-            ? "hsl(222, 47%, 14%)"
-            : "hsl(222, 47%, 11%)";
+          : isHighlighted
+            ? `${color}dd`
+            : isHovered
+              ? color
+              : isFile
+                ? "hsl(222, 47%, 14%)"
+                : "hsl(222, 47%, 11%)";
       ctx.fill();
 
       // Border
-      ctx.strokeStyle = isHovered || isRoot ? color : `${color}66`;
-      ctx.lineWidth = isHovered ? 2 / zoom : 1 / zoom;
+      ctx.strokeStyle = isActiveResult
+        ? "hsl(45, 100%, 70%)"
+        : isHighlighted
+          ? "hsl(45, 100%, 60%)"
+          : isHovered || isRoot ? color : `${color}66`;
+      ctx.lineWidth = isActiveResult ? 3 / zoom : isHighlighted ? 2 / zoom : isHovered ? 2 / zoom : 1 / zoom;
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
 
       // Label
-      ctx.fillStyle = isRoot || isHovered ? "#fff" : "#e2e8f0";
+      ctx.fillStyle = isRoot || isHovered || isActiveResult || isHighlighted ? "#fff" : "#e2e8f0";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(label, node.x, node.y);
@@ -360,11 +460,10 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
 
     ctx.restore();
 
-    // Continue if not settled
     if (!isSettled(root)) {
       animRef.current = requestAnimationFrame(render);
     }
-  }, [dimensions, pan, zoom, hoveredId]);
+  }, [dimensions, pan, zoom, hoveredId, highlightedIds, searchResults, activeResultIndex]);
 
   useEffect(() => {
     animRef.current = requestAnimationFrame(render);
@@ -382,7 +481,6 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     if (!root) return null;
     const visible = collectVisible(root);
 
-    // Check in reverse (top-most first)
     for (let i = visible.length - 1; i >= 0; i--) {
       const node = visible[i];
       const isRoot = node.depth === 0;
@@ -443,7 +541,6 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       return;
     }
 
-    // Toggle expand
     node.expanded = !node.expanded;
     const root = rootRef.current!;
     layoutTree(root, dimensions.width / 2, dimensions.height / 2);
@@ -497,6 +594,44 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
 
   return (
     <div className="relative w-full h-full" ref={containerRef}>
+      {/* Search bar */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+        <div className="relative flex items-center">
+          <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="노드 검색..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") goToResult(activeResultIndex + 1);
+              if (e.key === "Escape") clearSearch();
+            }}
+            className="h-8 w-48 pl-7 pr-7 text-xs bg-background/90 backdrop-blur-sm"
+          />
+          {searchQuery && (
+            <button onClick={clearSearch} className="absolute right-2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {searchResults.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground bg-background/90 backdrop-blur-sm rounded px-2 py-1.5 border border-border">
+            <span className="font-medium">{activeResultIndex + 1}/{searchResults.length}</span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => goToResult(activeResultIndex - 1)}>
+              <ChevronUp className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => goToResult(activeResultIndex + 1)}>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        {searchQuery && searchResults.length === 0 && (
+          <span className="text-xs text-muted-foreground bg-background/90 backdrop-blur-sm rounded px-2 py-1.5 border border-border">
+            결과 없음
+          </span>
+        )}
+      </div>
+
       {/* Controls */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(3, z * 1.2))} title="확대">
