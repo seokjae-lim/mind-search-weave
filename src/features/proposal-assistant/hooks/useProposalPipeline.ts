@@ -657,6 +657,22 @@ export function useProposalPipeline() {
         status: "completed",
       };
 
+      // Save to DB
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (userId) {
+        await supabase.from("deliverables").upsert(
+          {
+            section_id: section.id,
+            user_id: userId,
+            deliverable_type: deliverableType,
+            title: deliverable.title,
+            content: deliverable.content as any,
+            status: "completed",
+          },
+          { onConflict: "section_id,deliverable_type", ignoreDuplicates: false }
+        );
+      }
+
       setSections(prev =>
         prev.map(s => {
           if (s.id !== section.id) return s;
