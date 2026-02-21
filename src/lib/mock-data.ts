@@ -232,7 +232,7 @@ export const MOCK_BROWSE_FILES: BrowseFile[] = [
 export const MOCK_STATS: IndexStats = {
   total_files: 47,
   total_chunks: 1284,
-  last_updated: "2026-02-21T08:15:00",
+  last_updated: "2026-02-21T11:12:52",
   by_type: {
     pptx: 18,
     pdf: 12,
@@ -242,6 +242,13 @@ export const MOCK_STATS: IndexStats = {
     hwp: 1,
     docx: 1,
   },
+  by_project: [
+    { project_path: "국가중점데이터", file_count: 3, chunk_count: 11 },
+    { project_path: "AI분석플랫폼", file_count: 4, chunk_count: 6 },
+    { project_path: "공공데이터활용실태조사", file_count: 2, chunk_count: 5 },
+    { project_path: "디지털플랫폼정부", file_count: 2, chunk_count: 4 },
+    { project_path: "공공기관EA수립", file_count: 1, chunk_count: 2 },
+  ],
   failed_files: [
     { file_path: "국가중점데이터/04.수행/설계/시스템구성도_v2.pptx", error: "파일 손상: 슬라이드 읽기 실패", last_attempt: "2026-02-21T08:10:00" },
     { file_path: "스마트시티/05.보고서/최종보고_스캔본.pdf", error: "텍스트 추출 불가 (스캔 이미지 PDF)", last_attempt: "2026-02-21T08:12:00" },

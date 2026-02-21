@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { getStats } from "@/lib/api";
 import type { IndexStats, FileType } from "@/lib/types";
 import { FileTypeIcon } from "@/components/FileTypeIcon";
-import { Database, FileText, Clock, AlertTriangle, BarChart3 } from "lucide-react";
+import { Database, FileText, Clock, AlertTriangle, BarChart3, FolderOpen } from "lucide-react";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<IndexStats | null>(null);
@@ -82,6 +82,30 @@ export default function DashboardPage() {
                 </div>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Project Stats */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FolderOpen className="h-4 w-4 text-primary" />
+            프로젝트별
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-0 divide-y">
+            {stats.by_project.map((p) => (
+              <div key={p.project_path} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm text-foreground">{p.project_path}</span>
+                <span className="text-sm text-muted-foreground">{p.file_count} files / {p.chunk_count} chunks</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            Last indexed: {new Date(stats.last_updated).toLocaleString("ko-KR")}
           </div>
         </CardContent>
       </Card>
