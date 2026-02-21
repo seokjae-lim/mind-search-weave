@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { FolderNode, BrowseFile } from "@/lib/types";
+import { getChunksByFile } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ZoomIn, ZoomOut, Maximize, Minus, Plus, Search, X, ChevronUp, ChevronDown } from "lucide-react";
@@ -257,6 +258,24 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
 
   // File preview popup state
   const [filePopup, setFilePopup] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Fetch preview text when popup opens
+  useEffect(() => {
+    if (!filePopup) { setPreviewText(null); return; }
+    setPreviewLoading(true);
+    setPreviewText(null);
+    getChunksByFile(filePopup.node.path).then((chunks) => {
+      if (chunks.length > 0) {
+        setPreviewText(chunks[0].text.substring(0, 300));
+      } else {
+        setPreviewText("(미리보기 텍스트 없음)");
+      }
+    }).catch(() => {
+      setPreviewText("(미리보기를 불러올 수 없습니다)");
+    }).finally(() => setPreviewLoading(false));
+  }, [filePopup?.node.path]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -1012,6 +1031,19 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
                         <span>📅 {new Date(matchedFile.mtime).toLocaleDateString("ko-KR")}</span>
                       </div>
                     )}
+                    {/* Preview text */}
+                    <div className="mt-1 pt-2 border-t border-border">
+                      {previewLoading ? (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="inline-block h-3 w-3 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
+                          로딩 중...
+                        </div>
+                      ) : previewText ? (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-5">
+                          {previewText}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="px-4 pb-3">
                     <button
