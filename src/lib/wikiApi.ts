@@ -405,7 +405,9 @@ export async function ask(question: string, mode?: string): Promise<WikiAskRespo
 }
 
 export async function similar(chunkId: string, limit = 10): Promise<{ source_id: string; results: WikiChunk[] }> {
-  const fallback = { source_id: chunkId, results: DEMO_CHUNKS.slice(0, Math.min(limit, DEMO_CHUNKS.length)) };
+  const simScores = [0.95, 0.91, 0.87, 0.82, 0.78, 0.74, 0.69, 0.65, 0.61, 0.56];
+  const fallbackResults = DEMO_CHUNKS.filter(c => c.chunk_id !== chunkId).slice(0, Math.min(limit, DEMO_CHUNKS.length)).map((c, i) => ({ ...c, similarity: simScores[i] ?? 0.5 }));
+  const fallback = { source_id: chunkId, results: fallbackResults };
   return fetchWithFallback(`/similar/${encodeURIComponent(chunkId)}?limit=${limit}`, fallback);
 }
 
