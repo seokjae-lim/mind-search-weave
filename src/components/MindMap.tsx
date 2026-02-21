@@ -255,6 +255,9 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
 
+  // File preview popup state
+  const [filePopup, setFilePopup] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -686,10 +689,16 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     if (!rect) return;
     const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     const node = findNodeAt(wx, wy);
-    if (!node) return;
+    if (!node) { setFilePopup(null); return; }
 
     if (node.id.startsWith("file:")) {
-      navigate(`/doc/${encodeURIComponent(node.path)}`);
+      const rect2 = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect2.left;
+      const sy = e.clientY - rect2.top;
+      // Clamp popup so it stays within canvas
+      const popX = Math.min(sx, dimensions.width - 280);
+      const popY = Math.min(sy, dimensions.height - 160);
+      setFilePopup({ x: Math.max(8, popX), y: Math.max(8, popY), node });
       return;
     }
 
@@ -916,7 +925,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         ref={canvasRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
         style={{ width: dimensions.width, height: dimensions.height }}
-        onMouseDown={(e) => { setContextMenu(null); handleMouseDown(e); }}
+        onMouseDown={(e) => { setContextMenu(null); setFilePopup(null); handleMouseDown(e); }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { draggingNode.current = null; isPanning.current = false; setHoveredId(null); }}
@@ -964,6 +973,61 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
                 📄 문서 상세 보기
               </button>
             )}
+          </div>
+        </>
+      )}
+
+      {/* File Preview Popup */}
+      {filePopup && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setFilePopup(null)} />
+          <div
+            className="absolute z-30 w-[260px] rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl animate-in fade-in-0 zoom-in-95 overflow-hidden"
+            style={{ left: filePopup.x, top: filePopup.y }}
+          >
+            {(() => {
+              const ft = filePopup.node.fileType;
+              const fc = getFileColor(ft);
+              const icon = getFileIcon(ft);
+              const matchedFile = files.find(f => f.file_path === filePopup.node.path);
+              return (
+                <>
+                  <div className="px-4 py-3 flex items-center gap-2" style={{ background: fc.bg }}>
+                    <span className="text-lg">{icon || "📄"}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white truncate">{filePopup.node.label}</p>
+                      <p className="text-[10px] text-white/60 uppercase tracking-wider">{ft || "file"}</p>
+                    </div>
+                    <button onClick={() => setFilePopup(null)} className="text-white/50 hover:text-white shrink-0">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="px-4 py-3 space-y-2">
+                    <div className="text-xs text-muted-foreground truncate" title={filePopup.node.path}>
+                      📂 {filePopup.node.path}
+                    </div>
+                    {matchedFile && (
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>🧩 {matchedFile.chunk_count} chunks</span>
+                        <span>📅 {new Date(matchedFile.mtime).toLocaleDateString("ko-KR")}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-4 pb-3">
+                    <button
+                      onClick={() => {
+                        setFilePopup(null);
+                        navigate(`/doc/${encodeURIComponent(filePopup.node.path)}`);
+                      }}
+                      className="w-full py-2 rounded-lg text-sm font-medium transition-colors text-primary-foreground"
+                      style={{ background: fc.accent }}
+                    >
+                      문서 상세 보기 →
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </>
       )}
