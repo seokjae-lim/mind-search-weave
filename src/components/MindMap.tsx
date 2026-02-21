@@ -57,6 +57,16 @@ const FILE_TYPE_COLORS: Record<string, { bg: string; border: string; accent: str
 };
 const DEFAULT_FILE_COLOR = { bg: "hsl(222, 47%, 14%)", border: "hsl(220, 40%, 50%)", accent: "hsl(220, 40%, 50%)" };
 
+const FILE_TYPE_LABELS: Record<string, string> = {
+  pdf: "PDF",
+  pptx: "PowerPoint",
+  xlsx: "Excel",
+  csv: "CSV",
+  docx: "Word",
+  hwp: "한글(HWP)",
+  ipynb: "Notebook",
+};
+
 const getFileColor = (fileType?: string) => fileType ? (FILE_TYPE_COLORS[fileType] || DEFAULT_FILE_COLOR) : DEFAULT_FILE_COLOR;
 
 const getColor = (depth: number) => DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
@@ -933,6 +943,24 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
             forceUpdate((n) => n + 1);
           }}
         />
+      </div>
+
+      {/* Legend */}
+      <div className="absolute bottom-12 left-3 z-10 bg-background/85 backdrop-blur-sm rounded-lg border border-border px-3 py-2">
+        <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">파일 타입</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {Object.entries(FILE_TYPE_COLORS).filter(([key]) => key !== "csv").map(([type, colors]) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm border"
+                style={{ background: colors.bg, borderColor: colors.accent }}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                {FILE_TYPE_ICON[type]} {FILE_TYPE_LABELS[type]}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Hint */}
