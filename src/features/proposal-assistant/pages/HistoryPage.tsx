@@ -8,6 +8,12 @@ import { ko } from "date-fns/locale";
 import { useAuth } from "../hooks/useAuth";
 import AuthModal from "../components/AuthModal";
 import {
+  exportAnalysisToPdf,
+  exportAnalysisToExcel,
+  exportProposalToPdf,
+  exportProposalToExcel,
+} from "../lib/exportUtils";
+import {
   History,
   FileText,
   Trash2,
@@ -21,6 +27,7 @@ import {
   Calendar,
   Eye,
   ExternalLink,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +45,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
@@ -421,6 +434,21 @@ export default function HistoryPage() {
                           <ExternalLink className="h-3 w-3" />
                           불러오기
                         </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => exportAnalysisToPdf(analysis)}>
+                              <FileText className="h-4 w-4 mr-2" /> PDF 내보내기
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportAnalysisToExcel(analysis)}>
+                              <FileText className="h-4 w-4 mr-2" /> Excel 내보내기
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">
@@ -500,27 +528,50 @@ export default function HistoryPage() {
                           )}
                         </div>
                       </button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>프로젝트 삭제</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              "{project.title}" 프로젝트와 모든 섹션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>취소</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteProject(project.id)}>
-                              삭제
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={async () => {
+                              const { data: secs } = await supabase.from("proposal_sections").select("*").eq("project_id", project.id).order("sort_order", { ascending: true });
+                              exportProposalToPdf(project, (secs as any) || []);
+                            }}>
+                              <FileText className="h-4 w-4 mr-2" /> PDF 내보내기
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              const { data: secs } = await supabase.from("proposal_sections").select("*").eq("project_id", project.id).order("sort_order", { ascending: true });
+                              exportProposalToExcel(project, (secs as any) || []);
+                            }}>
+                              <FileText className="h-4 w-4 mr-2" /> Excel 내보내기
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>프로젝트 삭제</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                "{project.title}" 프로젝트와 모든 섹션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteProject(project.id)}>
+                                삭제
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
                   </CardHeader>
                   {expandedId === project.id && (
