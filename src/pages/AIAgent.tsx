@@ -1,27 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Bot, User, Sparkles, BookOpen, Loader2 } from "lucide-react";
+import { Send, Bot, User, BookOpen, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ask } from "@/lib/wikiApi";
+import { ask, embeddingStats } from "@/lib/wikiApi";
 import type { AIChatMessage, AIChatReference } from "@/lib/types";
+import { FileTypeBadge } from "@/components/FileTypeIcon";
 
 export default function AIAgentPage() {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<AIChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: "안녕하세요! Knowledge Wiki AI 에이전트입니다. 내부 축적 데이터를 기반으로 질문에 답변해 드립니다.\n\n다음과 같은 것을 물어보실 수 있습니다:\n- **프로젝트 관련 질문** (예: 국가중점데이터 사업 목표는?)\n- **기술 키워드 분석** (예: MLOps 관련 문서 알려줘)\n- **문서 요약 요청** (예: EA 현행아키텍처 요약해줘)",
-      timestamp: new Date().toISOString(),
-      references: [],
-    },
-  ]);
+  const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [embedInfo, setEmbedInfo] = useState<{ total: number; coverage: number; model?: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    embeddingStats().then((s) => {
+      setEmbedInfo({ total: s.total_chunks, coverage: Math.round(s.coverage * 100) });
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,30 +73,50 @@ export default function AIAgentPage() {
     }
   };
 
-  const SUGGESTIONS = ["국가중점데이터 사업 목표는?", "MLOps 파이프라인 구성 알려줘", "데이터 품질관리 방안 요약해줘"];
+  const SUGGESTIONS = ["보건복지부 데이터 현황은?", "AI 도입률이 가장 높은 분야는?", "데이터 거버넌스 성숙도 분석 결과", "클라우드 전환율은?"];
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b bg-background px-6 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Bot className="h-4 w-4" />
+      {/* Purple Hero Header - matching wiki */}
+      <div className="px-6 py-5 text-white" style={{ background: "linear-gradient(135deg, hsl(262 67% 55%), hsl(221 83% 53%))" }}>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+            <Bot className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold">AI 에이전트</h1>
-            <p className="text-xs text-muted-foreground">내부 축적 데이터 기반 질의응답</p>
+            <h1 className="text-lg font-bold">AI Knowledge Assistant</h1>
+            <p className="text-sm text-white/80">컨설팅 산출물 기반 RAG Q&A · 문서 컨텍스트로 답변합니다</p>
           </div>
-          <Badge variant="secondary" className="ml-auto text-xs">RAG</Badge>
         </div>
+        {embedInfo && (
+          <div className="flex items-center gap-2 text-xs text-white/70 mt-1">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" /> 임베딩: {embedInfo.total} chunks ({embedInfo.coverage}% 커버리지)</span>
+          </div>
+        )}
       </div>
 
+      {/* Chat Area */}
       <ScrollArea className="flex-1 px-4 py-4">
         <div className="mx-auto max-w-2xl space-y-4">
+          {messages.length === 0 && (
+            <div className="text-center py-12">
+              <MessageCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">질문을 입력하면 관련 문서를 찾아 답변합니다.</p>
+              <div className="flex flex-wrap justify-center gap-2 mt-4">
+                {SUGGESTIONS.map((s) => (
+                  <Button key={s} variant="outline" size="sm" className="text-xs h-8 rounded-full" onClick={() => setInput(s)}>
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {messages.map((msg) => (
             <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
               {msg.role === "assistant" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Sparkles className="h-4 w-4" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                  <Bot className="h-4 w-4" />
                 </div>
               )}
               <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
@@ -130,8 +150,8 @@ export default function AIAgentPage() {
           ))}
           {isLoading && (
             <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Sparkles className="h-4 w-4" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                <Bot className="h-4 w-4" />
               </div>
               <div className="rounded-xl bg-muted px-4 py-3">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -142,31 +162,19 @@ export default function AIAgentPage() {
         </div>
       </ScrollArea>
 
-      {messages.length <= 1 && (
-        <div className="mx-auto max-w-2xl px-4 pb-2">
-          <p className="text-xs text-muted-foreground mb-2">추천 질문</p>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
-              <Button key={s} variant="outline" size="sm" className="text-xs h-7" onClick={() => setInput(s)}>
-                {s}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t bg-background px-4 py-3">
+      {/* Input Area */}
+      <div className="border-t bg-card px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="질문을 입력하세요..."
-            className="flex-1"
+            placeholder="컨설팅 산출물에 대해 질문하세요...."
+            className="flex-1 rounded-full"
             disabled={isLoading}
           />
-          <Button onClick={sendMessage} disabled={isLoading || !input.trim()} size="icon">
-            <Send className="h-4 w-4" />
+          <Button onClick={sendMessage} disabled={isLoading || !input.trim()} className="rounded-full bg-purple-600 hover:bg-purple-700 text-white px-5">
+            <Send className="h-4 w-4 mr-1" /> 질문
           </Button>
         </div>
       </div>
