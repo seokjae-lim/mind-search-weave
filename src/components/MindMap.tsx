@@ -71,29 +71,68 @@ const getFileColor = (fileType?: string) => fileType ? (FILE_TYPE_COLORS[fileTyp
 
 const getColor = (depth: number) => DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
 
-// ─── Build tree from FolderNode ───
+// ─── Build tree from FolderNode, grouping files by project_path ───
 function buildMindMapTree(node: FolderNode, depth = 0, files?: BrowseFile[]): MindMapNode {
   const fileNodes: MindMapNode[] = [];
 
-  if (files && node.file_count > 0) {
-    const folderFiles = files.filter((f) => {
-      const dir = f.file_path.substring(0, f.file_path.lastIndexOf("/"));
-      return dir === node.path || f.file_path.startsWith(node.path + "/");
+  if (files && depth > 0) {
+    // Match files to this project node via project_path
+    const projectFiles = files.filter((f) => f.project_path === node.path);
+
+    // Group files by file_type for cleaner hierarchy
+    const byType = new Map<string, BrowseFile[]>();
+    projectFiles.forEach((f) => {
+      const key = f.file_type || "기타";
+      if (!byType.has(key)) byType.set(key, []);
+      byType.get(key)!.push(f);
     });
-    folderFiles.forEach((f) => {
-      fileNodes.push({
-        id: `file:${f.file_path}`,
-        label: f.doc_title,
-        path: f.file_path,
-        children: [],
-        fileCount: f.chunk_count,
-        fileType: f.file_type,
-        depth: depth + 1,
-        expanded: false,
-        x: 0, y: 0, targetX: 0, targetY: 0,
+
+    if (byType.size > 1 && projectFiles.length > 5) {
+      // Create file-type group nodes when there are multiple types and enough files
+      byType.forEach((groupFiles, fileType) => {
+        const typeLabel = FILE_TYPE_LABELS[fileType] || fileType.toUpperCase();
+        const groupNode: MindMapNode = {
+          id: `type:${node.path}:${fileType}`,
+          label: `${FILE_TYPE_ICON[fileType] || "📄"} ${typeLabel} (${groupFiles.length})`,
+          path: `${node.path}/${fileType}`,
+          children: groupFiles.map((f) => ({
+            id: `file:${f.file_path}`,
+            label: f.doc_title,
+            path: f.file_path,
+            children: [],
+            fileCount: f.chunk_count,
+            fileType: f.file_type,
+            depth: depth + 2,
+            expanded: false,
+            x: 0, y: 0, targetX: 0, targetY: 0,
+          })),
+          fileCount: groupFiles.length,
+          fileType,
+          depth: depth + 1,
+          expanded: false,
+          x: 0, y: 0, targetX: 0, targetY: 0,
+        };
+        fileNodes.push(groupNode);
       });
-    });
+    } else {
+      // Few files or single type — attach directly
+      projectFiles.forEach((f) => {
+        fileNodes.push({
+          id: `file:${f.file_path}`,
+          label: f.doc_title,
+          path: f.file_path,
+          children: [],
+          fileCount: f.chunk_count,
+          fileType: f.file_type,
+          depth: depth + 1,
+          expanded: false,
+          x: 0, y: 0, targetX: 0, targetY: 0,
+        });
+      });
+    }
   }
+
+  const childCount = fileNodes.reduce((s, n) => s + (n.children.length || 1), 0) || node.file_count;
 
   return {
     id: `folder:${node.path || "root"}`,
@@ -103,7 +142,7 @@ function buildMindMapTree(node: FolderNode, depth = 0, files?: BrowseFile[]): Mi
       ...node.children.map((c) => buildMindMapTree(c, depth + 1, files)),
       ...fileNodes,
     ],
-    fileCount: node.file_count,
+    fileCount: childCount,
     depth,
     expanded: depth < 1,
     x: 0, y: 0, targetX: 0, targetY: 0,
