@@ -272,7 +272,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       if (containerRef.current) {
         const w = containerRef.current.clientWidth;
         const h = containerRef.current.clientHeight;
-        setDimensions({ width: w || 800, height: Math.max(h, isMobile ? 400 : 500) });
+        setDimensions({ width: w || 800, height: h || 500 });
       }
     };
     // Delay initial measurement to allow flex layout to resolve
@@ -555,7 +555,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       )}
 
       {/* Graph */}
-      <div ref={containerRef} className="flex-1 relative min-h-0 bg-[hsl(222,47%,6%)]" style={{ minHeight: isMobile ? 400 : 500 }}>
+      <div ref={containerRef} className="flex-1 relative min-h-0 overflow-hidden bg-[hsl(222,47%,6%)]">
         <ForceGraph2D
           ref={fgRef}
           width={dimensions.width}

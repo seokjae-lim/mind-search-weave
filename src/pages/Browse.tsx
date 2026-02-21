@@ -363,7 +363,7 @@ export default function BrowsePage() {
           {tree && <MindMap tree={tree} files={allFiles.length > 0 ? allFiles : files} />}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
           <KnowledgeGraphEmbed showHeader={false} />
         </div>
       )}
