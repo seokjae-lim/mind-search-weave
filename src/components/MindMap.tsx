@@ -580,15 +580,42 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     return null;
   };
 
+  const draggingNode = useRef<MindMapNode | null>(null);
+  const didDrag = useRef(false);
+
   const handleMouseDown = (e: React.MouseEvent) => {
-    isPanning.current = true;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const node = findNodeAt(wx, wy);
+
+    if (node && node.depth > 0) {
+      draggingNode.current = node;
+      didDrag.current = false;
+    } else {
+      isPanning.current = true;
+    }
     lastMouse.current = { x: e.clientX, y: e.clientY };
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+
+    if (draggingNode.current) {
+      const node = draggingNode.current;
+      node.targetX += dx / zoom;
+      node.targetY += dy / zoom;
+      node.x = node.targetX;
+      node.y = node.targetY;
+      didDrag.current = true;
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      forceUpdate((n) => n + 1);
+      animRef.current = requestAnimationFrame(render);
+      return;
+    }
+
     if (isPanning.current) {
-      const dx = e.clientX - lastMouse.current.x;
-      const dy = e.clientY - lastMouse.current.y;
       setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
       lastMouse.current = { x: e.clientX, y: e.clientY };
       return;
@@ -602,10 +629,16 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   };
 
   const handleMouseUp = () => {
+    draggingNode.current = null;
     isPanning.current = false;
   };
 
   const handleClick = (e: React.MouseEvent) => {
+    if (didDrag.current) {
+      didDrag.current = false;
+      return;
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -613,8 +646,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     if (!node) return;
 
     if (node.id.startsWith("file:")) {
-      const filePath = node.path;
-      navigate(`/doc/${encodeURIComponent(filePath)}`);
+      navigate(`/doc/${encodeURIComponent(node.path)}`);
       return;
     }
 
@@ -773,7 +805,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
 
       {/* Hint */}
       <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded px-2 py-1">
-        클릭: 펼치기/접기 · 파일 클릭: 문서 상세 · 드래그: 이동 · 스크롤: 확대/축소
+        클릭: 펼치기/접기 · 파일 클릭: 문서 상세 · 노드 드래그: 이동 · 빈 곳 드래그: 패닝 · 스크롤: 확대/축소
       </div>
 
       <canvas
@@ -783,7 +815,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { isPanning.current = false; setHoveredId(null); }}
+        onMouseLeave={() => { draggingNode.current = null; isPanning.current = false; setHoveredId(null); }}
         onClick={handleClick}
         onWheel={handleWheel}
       />
