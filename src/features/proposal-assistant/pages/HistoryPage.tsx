@@ -550,7 +550,18 @@ export default function HistoryPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={async () => {
                               const { data: secs } = await supabase.from("proposal_sections").select("*").eq("project_id", project.id).order("sort_order", { ascending: true });
-                              await exportProposalToPdf(project, (secs as any) || []);
+                              const sectionIds = (secs || []).map((s: any) => s.id);
+                              let delivMap: Record<string, any[]> = {};
+                              if (sectionIds.length > 0) {
+                                const { data: delivs } = await supabase.from("deliverables").select("section_id, deliverable_type, title, content, status").in("section_id", sectionIds);
+                                for (const d of (delivs || [])) {
+                                  const sid = (d as any).section_id;
+                                  if (!delivMap[sid]) delivMap[sid] = [];
+                                  delivMap[sid].push({ deliverable_type: d.deliverable_type, title: d.title, content: d.content, status: d.status || "completed" });
+                                }
+                              }
+                              const exportSecs = (secs || []).map((s: any) => ({ ...s, deliverables: delivMap[s.id] || [] }));
+                              await exportProposalToPdf(project, exportSecs);
                             }}>
                               <FileText className="h-4 w-4 mr-2" /> PDF 내보내기
                             </DropdownMenuItem>
