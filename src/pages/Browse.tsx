@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderOpen, ChevronRight, ChevronDown, File, Search, LayoutGrid, GitBranchPlus } from "lucide-react";
+import { FolderOpen, ChevronRight, ChevronDown, File, Search, LayoutGrid, GitBranchPlus, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export default function BrowsePage() {
   const [scopedSearch, setScopedSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "mindmap">("tree");
+  const [treeExpandAll, setTreeExpandAll] = useState<boolean | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,11 +75,33 @@ export default function BrowsePage() {
           {/* Tree Panel */}
           <aside className="w-72 shrink-0 border-r bg-card overflow-auto">
             <div className="p-4">
-              <h2 className="mb-3 text-sm font-semibold flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-primary" />
-                폴더 탐색
-              </h2>
-              {tree && <TreeNode node={tree} selectedPath={selectedPath} onSelect={selectFolder} depth={0} />}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-primary" />
+                  폴더 탐색
+                </h2>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="전체 펼치기"
+                    onClick={() => setTreeExpandAll(true)}
+                  >
+                    <ChevronsUpDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title="전체 접기"
+                    onClick={() => setTreeExpandAll(false)}
+                  >
+                    <ChevronsDownUp className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              {tree && <TreeNode node={tree} selectedPath={selectedPath} onSelect={selectFolder} depth={0} expandAll={treeExpandAll} onExpandHandled={() => setTreeExpandAll(null)} />}
             </div>
           </aside>
 
@@ -151,10 +174,15 @@ export default function BrowsePage() {
   );
 }
 
-function TreeNode({ node, selectedPath, onSelect, depth }: { node: FolderNode; selectedPath: string; onSelect: (p: string) => void; depth: number }) {
+function TreeNode({ node, selectedPath, onSelect, depth, expandAll, onExpandHandled }: { node: FolderNode; selectedPath: string; onSelect: (p: string) => void; depth: number; expandAll?: boolean | null; onExpandHandled?: () => void }) {
   const [open, setOpen] = useState(depth < 1);
   const hasChildren = node.children.length > 0;
   const isSelected = selectedPath === node.path;
+
+  useEffect(() => {
+    if (expandAll === true) { setOpen(true); onExpandHandled?.(); }
+    else if (expandAll === false) { if (depth > 0) setOpen(false); onExpandHandled?.(); }
+  }, [expandAll]);
 
   return (
     <div>
@@ -177,7 +205,7 @@ function TreeNode({ node, selectedPath, onSelect, depth }: { node: FolderNode; s
       {open && hasChildren && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.path} node={child} selectedPath={selectedPath} onSelect={onSelect} depth={depth + 1} />
+            <TreeNode key={child.path} node={child} selectedPath={selectedPath} onSelect={onSelect} depth={depth + 1} expandAll={expandAll} onExpandHandled={onExpandHandled} />
           ))}
         </div>
       )}
