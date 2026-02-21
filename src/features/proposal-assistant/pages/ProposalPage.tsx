@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -46,6 +47,7 @@ const ProposalPageInner = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState("");
+  const location = useLocation();
 
   const { user, signUp, signIn } = useAuth();
   const { rfpContent } = useAnalysisContext();
@@ -56,6 +58,7 @@ const ProposalPageInner = () => {
     loading,
     stageLoading,
     createProject,
+    loadProject,
     extractRequirements,
     researchRequirement,
     researchAll,
@@ -65,6 +68,15 @@ const ProposalPageInner = () => {
     runAutoMode,
     updateSectionNotes,
   } = useProposalPipeline();
+
+  // Load project from history navigation
+  useEffect(() => {
+    const state = location.state as { loadProjectId?: string } | null;
+    if (state?.loadProjectId && !project) {
+      loadProject(state.loadProjectId);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, project, loadProject]);
 
   const handleStart = async () => {
     if (!user) {

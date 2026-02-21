@@ -529,6 +529,18 @@ export default function HistoryPage() {
                         </div>
                       </button>
                       <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate("/assistant/proposal", { state: { loadProjectId: project.id } });
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          불러오기
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="icon" className="shrink-0" onClick={(e) => e.stopPropagation()}>
