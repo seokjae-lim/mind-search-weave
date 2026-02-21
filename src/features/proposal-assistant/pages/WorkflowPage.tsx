@@ -16,6 +16,7 @@ import {
   RESEARCH_STEPS,
   type DeepResearchData,
   type ResearchStepData,
+  type SectionDeliverable,
 } from "../hooks/useProposalPipeline";
 import { useAnalysisContext, AnalysisProvider } from "../contexts/AnalysisContext";
 import {
@@ -36,6 +37,12 @@ import {
   Cpu,
   GitCompare,
   FileText,
+  Lightbulb,
+  Calendar,
+  Calculator,
+  Package,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -90,6 +97,9 @@ const WorkflowPageInner = () => {
     mergeProposal,
     runAutoMode,
     updateSectionNotes,
+    generateDeliverable,
+    generateAllDeliverables,
+    DELIVERABLE_TYPES,
   } = useProposalPipeline();
 
   // Load project from history navigation
@@ -314,6 +324,10 @@ const WorkflowPageInner = () => {
           <Tabs defaultValue="sections" className="space-y-4">
             <TabsList>
               <TabsTrigger value="sections">요구사항 ({sections.length})</TabsTrigger>
+              <TabsTrigger value="deliverables" disabled={sections.length === 0}>
+                <Package className="w-3.5 h-3.5 mr-1" />
+                산출물
+              </TabsTrigger>
               {project.merged_document && <TabsTrigger value="merged">통합 제안서</TabsTrigger>}
             </TabsList>
 
@@ -342,6 +356,33 @@ const WorkflowPageInner = () => {
                     onSaveNotes={() => handleSaveNotes(section.id)}
                     onCancelNotes={() => setEditingNotes(null)}
                     getStatusBadge={getStatusBadge}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="deliverables">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Package className="w-5 h-5 text-primary" />
+                      산출물 생성
+                    </CardTitle>
+                    <CardDescription>
+                      딥리서치 결과를 기반으로 요구사항별 산출물을 생성합니다. 조사가 완료된 요구사항만 생성 가능합니다.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+
+                {sections.map((section) => (
+                  <DeliverableSection
+                    key={section.id}
+                    section={section}
+                    model={project!.model}
+                    onGenerate={(type) => generateDeliverable(section, type, project!.model)}
+                    onGenerateAll={() => generateAllDeliverables(section, project!.model)}
+                    deliverableTypes={DELIVERABLE_TYPES}
                   />
                 ))}
               </div>
@@ -708,6 +749,175 @@ const MergedDocumentView = ({ document }: { document: Record<string, unknown> })
     )}
   </div>
 );
+
+/* ---------- Deliverable Section ---------- */
+
+const DELIVERABLE_ICONS: Record<string, React.ElementType> = {
+  definition: FileText,
+  proposal: Lightbulb,
+  wbs: Calendar,
+  estimate: Calculator,
+};
+
+interface DeliverableSectionProps {
+  section: ProposalRequirement;
+  model: string;
+  onGenerate: (type: string) => void;
+  onGenerateAll: () => void;
+  deliverableTypes: { id: string; label: string }[];
+}
+
+const DeliverableSection = ({ section, onGenerate, onGenerateAll, deliverableTypes }: DeliverableSectionProps) => {
+  const [expanded, setExpanded] = useState(false);
+  const [copiedType, setCopiedType] = useState<string | null>(null);
+  const researchDone = section.research_status === "completed";
+  const deliverables = section.deliverables || [];
+
+  const copyContent = async (content: Record<string, unknown>, type: string) => {
+    await navigator.clipboard.writeText(JSON.stringify(content, null, 2));
+    setCopiedType(type);
+    setTimeout(() => setCopiedType(null), 2000);
+  };
+
+  return (
+    <Card className={cn(!researchDone && "opacity-60")}>
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Badge variant="outline" className="shrink-0">{section.requirement_number}</Badge>
+          <span className="font-medium truncate">{section.requirement_title}</span>
+          {deliverables.filter(d => d.status === "completed").length > 0 && (
+            <Badge variant="secondary" className="shrink-0">
+              {deliverables.filter(d => d.status === "completed").length}/{deliverableTypes.length} 생성됨
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!researchDone && <Badge variant="outline" className="text-xs">조사 미완료</Badge>}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </div>
+      </div>
+
+      {expanded && (
+        <CardContent className="border-t space-y-4">
+          {!researchDone && (
+            <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
+              ⚠️ 딥리서치를 먼저 완료해야 산출물을 생성할 수 있습니다. &quot;요구사항&quot; 탭에서 딥리서치를 실행하세요.
+            </p>
+          )}
+
+          <div className="flex gap-2 mb-4">
+            <Button
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onGenerateAll(); }}
+              disabled={!researchDone || deliverables.some(d => d.status === "generating")}
+              className="gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              전체 생성
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {deliverableTypes.map((dt) => {
+              const Icon = DELIVERABLE_ICONS[dt.id] || FileText;
+              const existing = deliverables.find(d => d.deliverable_type === dt.id);
+              const isGenerating = existing?.status === "generating";
+              const isCompleted = existing?.status === "completed";
+
+              return (
+                <div key={dt.id} className="border rounded-lg">
+                  <div className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">{dt.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isCompleted && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyContent(existing!.content, dt.id);
+                          }}
+                        >
+                          {copiedType === dt.id ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant={isCompleted ? "secondary" : "outline"}
+                        onClick={(e) => { e.stopPropagation(); onGenerate(dt.id); }}
+                        disabled={!researchDone || isGenerating}
+                        className="gap-1 h-7 text-xs"
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : isCompleted ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <Play className="w-3 h-3" />
+                        )}
+                        {isCompleted ? "재생성" : "생성"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isCompleted && existing?.content && (
+                    <DeliverableContentPreview content={existing.content} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+};
+
+const DeliverableContentPreview = ({ content }: { content: Record<string, unknown> }) => {
+  const [showFull, setShowFull] = useState(false);
+
+  // Show first few keys as preview
+  const entries = Object.entries(content).filter(([k]) => k !== "requirement_id");
+  const preview = entries.slice(0, 3);
+
+  return (
+    <div className="border-t px-3 pb-3">
+      <div className="mt-2 text-sm space-y-1.5">
+        {(showFull ? entries : preview).map(([key, value]) => (
+          <div key={key}>
+            <span className="text-xs font-medium text-muted-foreground">
+              {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}:
+            </span>
+            <span className="ml-1.5 text-sm">
+              {typeof value === "string"
+                ? (showFull ? value : value.substring(0, 100) + (value.length > 100 ? "..." : ""))
+                : Array.isArray(value)
+                ? `[${value.length}개 항목]`
+                : typeof value === "object" && value !== null
+                ? `{${Object.keys(value as object).length}개 필드}`
+                : String(value)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {entries.length > 3 && (
+        <button
+          className="text-xs text-primary mt-2 hover:underline"
+          onClick={(e) => { e.stopPropagation(); setShowFull(!showFull); }}
+        >
+          {showFull ? "접기" : `+${entries.length - 3}개 더 보기`}
+        </button>
+      )}
+    </div>
+  );
+};
 
 export default function WorkflowPage() {
   return (

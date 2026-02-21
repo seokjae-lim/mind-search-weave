@@ -21,6 +21,13 @@ export interface DeepResearchData {
   completed: boolean;
 }
 
+export interface SectionDeliverable {
+  deliverable_type: string;
+  title: string;
+  content: Record<string, unknown>;
+  status: "pending" | "generating" | "completed" | "error";
+}
+
 export interface ProposalRequirement {
   id: string;
   requirement_number: string;
@@ -34,6 +41,7 @@ export interface ProposalRequirement {
   draft_status: "pending" | "running" | "completed" | "error";
   user_notes: string | null;
   sort_order: number;
+  deliverables?: SectionDeliverable[];
 }
 
 export interface ProposalProject {
@@ -441,6 +449,122 @@ export function useProposalPipeline() {
     );
   }, []);
 
+  // ── Deliverable Generation (using deep research as context) ──
+
+  const DELIVERABLE_TYPES = [
+    { id: "definition", label: "요구사항 정의서" },
+    { id: "proposal", label: "기술 제안서" },
+    { id: "wbs", label: "WBS/일정표" },
+    { id: "estimate", label: "견적서/비용 산정" },
+  ];
+
+  const generateDeliverable = useCallback(async (
+    section: ProposalRequirement,
+    deliverableType: string,
+    model: string
+  ): Promise<boolean> => {
+    // Update local state to show generating
+    setSections(prev =>
+      prev.map(s => {
+        if (s.id !== section.id) return s;
+        const existing = s.deliverables || [];
+        const updated = [
+          ...existing.filter(d => d.deliverable_type !== deliverableType),
+          { deliverable_type: deliverableType, title: "", content: {}, status: "generating" as const },
+        ];
+        return { ...s, deliverables: updated };
+      })
+    );
+
+    try {
+      // Build additional context from deep research results
+      const deep = getDeepResearch(section.research_data);
+      let additionalContext = "";
+      if (deep?.completed) {
+        const parts: string[] = [];
+        for (const rs of RESEARCH_STEPS) {
+          const stepData = deep.steps[rs.key];
+          if (stepData?.status === "completed" && stepData.data) {
+            parts.push(`[${rs.label}]\n${JSON.stringify(stepData.data, null, 1)}`);
+          }
+        }
+        additionalContext = parts.join("\n\n");
+      }
+
+      const { data, error } = await supabase.functions.invoke("generate-deliverable", {
+        body: {
+          requirement: {
+            requirement_number: section.requirement_number,
+            title: section.requirement_title,
+            description: section.requirement_description,
+            category: section.category,
+            priority: section.priority,
+          },
+          deliverableType,
+          model,
+          additionalContext: additionalContext.substring(0, 10000),
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      const label = DELIVERABLE_TYPES.find(t => t.id === deliverableType)?.label || deliverableType;
+      const deliverable: SectionDeliverable = {
+        deliverable_type: deliverableType,
+        title: `${section.requirement_number} - ${label}`,
+        content: data.data,
+        status: "completed",
+      };
+
+      setSections(prev =>
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const existing = s.deliverables || [];
+          return {
+            ...s,
+            deliverables: [
+              ...existing.filter(d => d.deliverable_type !== deliverableType),
+              deliverable,
+            ],
+          };
+        })
+      );
+
+      toast.success(`${label} 생성 완료`);
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "산출물 생성 실패";
+      setSections(prev =>
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const existing = s.deliverables || [];
+          return {
+            ...s,
+            deliverables: existing.map(d =>
+              d.deliverable_type === deliverableType ? { ...d, status: "error" as const } : d
+            ),
+          };
+        })
+      );
+      toast.error(`산출물 생성 실패: ${msg}`);
+      return false;
+    }
+  }, []);
+
+  const generateAllDeliverables = useCallback(async (
+    section: ProposalRequirement,
+    model: string
+  ): Promise<boolean> => {
+    let allOk = true;
+    for (const dt of DELIVERABLE_TYPES) {
+      const ok = await generateDeliverable(section, dt.id, model);
+      if (!ok) allOk = false;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    return allOk;
+  }, [generateDeliverable]);
+
   const loadProject = useCallback(async (projectId: string): Promise<boolean> => {
     setLoading(true);
     try {
@@ -487,8 +611,11 @@ export function useProposalPipeline() {
     mergeProposal,
     runAutoMode,
     updateSectionNotes,
+    generateDeliverable,
+    generateAllDeliverables,
     setSections,
     setProject,
     RESEARCH_STEPS,
+    DELIVERABLE_TYPES,
   };
 }
