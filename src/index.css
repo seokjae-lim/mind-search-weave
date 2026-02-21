@@ -129,21 +129,21 @@ mark {
 }
 
 /* Wiki-style file type badge colors */
-.badge-pptx { @apply bg-orange-100 text-orange-700 border-orange-200; }
-.badge-pdf { @apply bg-red-100 text-red-700 border-red-200; }
-.badge-xlsx { @apply bg-green-100 text-green-700 border-green-200; }
-.badge-csv { @apply bg-emerald-100 text-emerald-700 border-emerald-200; }
-.badge-ipynb { @apply bg-purple-100 text-purple-700 border-purple-200; }
-.badge-hwp { @apply bg-blue-100 text-blue-700 border-blue-200; }
-.badge-docx { @apply bg-blue-100 text-blue-700 border-blue-200; }
+.badge-pptx { @apply bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800; }
+.badge-pdf { @apply bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800; }
+.badge-xlsx { @apply bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800; }
+.badge-csv { @apply bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800; }
+.badge-ipynb { @apply bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800; }
+.badge-hwp { @apply bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800; }
+.badge-docx { @apply bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800; }
 
 /* Category badge colors */
-.cat-badge-데이터 { @apply bg-green-100 text-green-700; }
-.cat-badge-AI { @apply bg-purple-100 text-purple-700; }
-.cat-badge-인프라 { @apply bg-blue-100 text-blue-700; }
-.cat-badge-거버넌스 { @apply bg-orange-100 text-orange-700; }
-.cat-badge-사업관리 { @apply bg-pink-100 text-pink-700; }
-.cat-badge-전략 { @apply bg-cyan-100 text-cyan-700; }
+.cat-badge-데이터 { @apply bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300; }
+.cat-badge-AI { @apply bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300; }
+.cat-badge-인프라 { @apply bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300; }
+.cat-badge-거버넌스 { @apply bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300; }
+.cat-badge-사업관리 { @apply bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300; }
+.cat-badge-전략 { @apply bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300; }
 
 /* Project color accents */
 .project-stripe-1 { @apply border-t-4 border-t-blue-500; }

@@ -189,17 +189,17 @@ export default function BrowsePage() {
   return (
     <div className="flex flex-col h-full">
       {/* View mode tabs */}
-      <div className="border-b bg-background px-4 pt-3 pb-0">
+      <div className="border-b bg-background px-3 sm:px-4 pt-2 sm:pt-3 pb-0">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
           <TabsList className="bg-transparent h-auto p-0 gap-0">
-            <TabsTrigger value="tree" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
-              <LayoutGrid className="h-3.5 w-3.5 mr-1.5" /> 카드 탐색
+            <TabsTrigger value="tree" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">카드 </span>탐색
             </TabsTrigger>
-            <TabsTrigger value="mindmap" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
-              <GitBranchPlus className="h-3.5 w-3.5 mr-1.5" /> 마인드맵
+            <TabsTrigger value="mindmap" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
+              <GitBranchPlus className="h-3.5 w-3.5 mr-1" /> 마인드맵
             </TabsTrigger>
-            <TabsTrigger value="knowledge-graph" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm">
-              <Network className="h-3.5 w-3.5 mr-1.5" /> 지식 그래프
+            <TabsTrigger value="knowledge-graph" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
+              <Network className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">지식 </span>그래프
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -208,97 +208,100 @@ export default function BrowsePage() {
       {viewMode === "tree" ? (
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Filter bar */}
-          <div className="border-b bg-card/80 backdrop-blur px-4 py-3">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="border-b bg-card/80 backdrop-blur px-3 sm:px-4 py-2 sm:py-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Search */}
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="문서 제목 검색..."
-                  className="pl-9 h-9"
+                  className="pl-9 h-8 sm:h-9 text-xs sm:text-sm"
                 />
               </div>
 
-              {/* Project filter */}
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-[180px] h-9 bg-background">
-                  <FolderOpen className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <SelectValue placeholder="사업 선택" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">전체 사업</SelectItem>
-                  {projectList.map(p => (
-                    <SelectItem key={p.project_path} value={p.project_path}>
-                      {p.project_path} ({p.file_count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Filters row - scrollable on mobile */}
+              <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                {/* Project filter */}
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger className="w-[140px] sm:w-[180px] h-8 sm:h-9 bg-background text-xs sm:text-sm shrink-0">
+                    <FolderOpen className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 text-muted-foreground" />
+                    <SelectValue placeholder="사업" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    <SelectItem value="all">전체 사업</SelectItem>
+                    {projectList.map(p => (
+                      <SelectItem key={p.project_path} value={p.project_path}>
+                        {p.project_path} ({p.file_count})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              {/* File type filter */}
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger className="w-[140px] h-9 bg-background">
-                  <ListFilter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <SelectValue placeholder="파일 유형" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  {FILE_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {/* File type filter */}
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                  <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-9 bg-background text-xs sm:text-sm shrink-0">
+                    <ListFilter className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 text-muted-foreground" />
+                    <SelectValue placeholder="유형" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    {FILE_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              {/* Category filter */}
-              <Select value={selectedCat} onValueChange={setSelectedCat}>
-                <SelectTrigger className="w-[140px] h-9 bg-background">
-                  <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <SelectValue placeholder="카테고리" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">전체 카테고리</SelectItem>
-                  {catList.map(c => (
-                    <SelectItem key={c.category} value={c.category}>{c.category} ({c.count})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {/* Category filter */}
+                <Select value={selectedCat} onValueChange={setSelectedCat}>
+                  <SelectTrigger className="w-[110px] sm:w-[140px] h-8 sm:h-9 bg-background text-xs sm:text-sm shrink-0">
+                    <Filter className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 text-muted-foreground" />
+                    <SelectValue placeholder="분류" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    <SelectItem value="all">전체 카테고리</SelectItem>
+                    {catList.map(c => (
+                      <SelectItem key={c.category} value={c.category}>{c.category} ({c.count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              {/* Sort */}
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[120px] h-9 bg-background">
-                  <SelectValue placeholder="정렬" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  {SORT_OPTIONS.map(s => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {/* Sort */}
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[90px] sm:w-[120px] h-8 sm:h-9 bg-background text-xs sm:text-sm shrink-0">
+                    <SelectValue placeholder="정렬" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    {SORT_OPTIONS.map(s => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              {/* Result count */}
-              <Badge variant="secondary" className="text-xs ml-auto">
-                {filteredCards.length}개 문서
-              </Badge>
+                {/* Result count */}
+                <Badge variant="secondary" className="text-[10px] sm:text-xs ml-auto shrink-0">
+                  {filteredCards.length}개
+                </Badge>
+              </div>
             </div>
           </div>
 
           {/* Card grid */}
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-3 sm:p-4">
             {filteredCards.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <FolderOpen className="h-12 w-12 mb-3 opacity-40" />
                 <p className="text-sm">검색 결과가 없습니다</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
                 {filteredCards.map((f) => (
                   <Card
                     key={f.file_path}
                     className="group cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5"
                     onClick={() => navigate(`/doc/${encodeURIComponent(f.file_path)}`)}
                   >
-                    <CardContent className="p-4 flex flex-col gap-3">
+                    <CardContent className="p-3 sm:p-4 flex flex-col gap-2 sm:gap-3">
                       {/* Header: icon + type badge */}
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
