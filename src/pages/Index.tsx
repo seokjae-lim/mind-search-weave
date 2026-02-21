@@ -20,6 +20,12 @@ import { useToast } from "@/hooks/use-toast";
 
 const FILE_TYPES: FileType[] = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
 
+function highlightQuery(text: string, query: string): string {
+  if (!query.trim()) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.replace(new RegExp(`(${escaped})`, "gi"), "<mark>$1</mark>");
+}
+
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
@@ -210,9 +216,10 @@ export default function SearchPage() {
                 <Separator />
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">전체 텍스트</p>
-                  <div className="rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap">
-                    {selectedChunk.text}
-                  </div>
+                  <div
+                    className="rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap [&_mark]:bg-highlight [&_mark]:text-highlight-foreground [&_mark]:rounded-sm [&_mark]:px-0.5"
+                    dangerouslySetInnerHTML={{ __html: highlightQuery(selectedChunk.text, query) }}
+                  />
                 </div>
                 {selectedChunk.tags.length > 0 && (
                   <div>
