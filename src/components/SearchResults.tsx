@@ -265,6 +265,17 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                 <div className="flex gap-2 flex-wrap">
                   <FileTypeBadge type={selectedChunk.file_type} />
                   <LocationBadge location={selectedChunk.location} />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs ml-auto"
+                    onClick={() => {
+                      const fileName = selectedChunk.file_path.split("/").pop() || selectedChunk.doc_title;
+                      window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`, "_blank");
+                    }}
+                  >
+                    <HardDrive className="mr-1 h-3 w-3" /> Drive에서 열기
+                  </Button>
                 </div>
                 <Separator />
                 <div>
