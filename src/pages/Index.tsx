@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { searchChunks } from "@/lib/api";
-import type { SearchResponse, FileType } from "@/lib/types";
+import { search as wikiSearch } from "@/lib/wikiApi";
+import type { WikiSearchResponse } from "@/lib/wikiApi";
 import { SearchHome } from "@/components/SearchHome";
 import { SearchResults } from "@/components/SearchResults";
 
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [results, setResults] = useState<SearchResponse | null>(null);
+  const [results, setResults] = useState<WikiSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastQuery, setLastQuery] = useState("");
 
@@ -17,9 +17,10 @@ export default function SearchPage() {
     setSearchParams({ q: query });
     setLastQuery(query);
     try {
-      const types = type ? [type as FileType] : undefined;
-      const res = await searchChunks({ query, types, sort: "relevance" });
+      const res = await wikiSearch({ q: query, type, sort: "relevance" });
       setResults(res);
+    } catch {
+      // toast shown by wikiApi
     } finally {
       setLoading(false);
     }
@@ -31,10 +32,10 @@ export default function SearchPage() {
   };
 
   // Run initial search from URL params
-  useState(() => {
+  useEffect(() => {
     const q = searchParams.get("q");
-    if (q) doSearch(q);
-  });
+    if (q && !results) doSearch(q);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (

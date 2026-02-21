@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Knowledge Wiki API
+  version: "4.0"
+  description: |
+    컨설팅 산출물 지식 검색 플랫폼 API.
+    Hono + Cloudflare Workers (D1 SQLite FTS5) 기반.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+paths:
+  /api/search:
+    get:
+      summary: FTS 전문 검색
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: path, in: query, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string } }
+        - { name: project, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: doc_stage, in: query, schema: { type: string } }
+        - { name: org, in: query, schema: { type: string } }
+        - { name: year, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [relevance, mtime, views, importance] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: 검색 결과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+
+  /api/semantic-search:
+    get:
+      summary: 시맨틱 벡터 검색
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string } }
+        - { name: project, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+        - { name: threshold, in: query, schema: { type: number, default: 0.1 } }
+      responses:
+        "200":
+          description: 시맨틱 검색 결과
+
+  /api/browse:
+    get:
+      summary: 필터 기반 브라우징 (FTS 없이)
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+        - { name: project, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: doc_stage, in: query, schema: { type: string } }
+        - { name: org, in: query, schema: { type: string } }
+        - { name: year, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [mtime, views, importance, title] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: 브라우징 결과
+
+  /api/doc/{chunk_id}:
+    get:
+      summary: 문서 상세 + 관련/유사 추천
+      parameters:
+        - { name: chunk_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: 청크 상세 정보
+
+  /api/stats:
+    get:
+      summary: 통합 통계
+      responses:
+        "200":
+          description: 인덱싱 현황
+
+  /api/tags:
+    get:
+      summary: 태그 클라우드 데이터
+      responses:
+        "200":
+          description: 태그별 빈도
+
+  /api/projects:
+    get:
+      summary: 프로젝트 목록
+      responses:
+        "200":
+          description: 프로젝트별 통계
+
+  /api/categories:
+    get:
+      summary: 주제분류 목록
+
+  /api/orgs:
+    get:
+      summary: 발주기관 목록
+
+  /api/trending:
+    get:
+      summary: 인기/최근 문서
+
+  /api/ask:
+    post:
+      summary: AI Q&A (RAG 패턴)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string }
+                mode: { type: string }
+      responses:
+        "200":
+          description: AI 답변 + 출처
+
+  /api/similar/{chunk_id}:
+    get:
+      summary: 벡터 유사 문서 추천
+
+  /api/embedding-stats:
+    get:
+      summary: 임베딩 커버리지 통계
+
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/WikiChunk"
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        query: { type: string }
+
+    WikiChunk:
+      type: object
+      properties:
+        chunk_id: { type: string }
+        file_path: { type: string }
+        file_type: { type: string }
+        project_path: { type: string }
+        doc_title: { type: string }
+        location_type: { type: string }
+        location_value: { type: string }
+        location_detail: { type: string }
+        snippet: { type: string }
+        text: { type: string }
+        mtime: { type: string }
+        tags: { type: string, description: "JSON string array" }
+        category: { type: string }
+        sub_category: { type: string }
+        author: { type: string }
+        org: { type: string }
+        doc_stage: { type: string }
+        doc_year: { type: string }
+        importance: { type: integer }
+        view_count: { type: integer }
+        summary: { type: string }
+        hash: { type: string }
