@@ -9,10 +9,7 @@ verify_jwt = false
 [functions.extract-requirements]
 verify_jwt = false
 
-[functions.research-requirement]
-verify_jwt = false
-
-[functions.draft-proposal]
+[functions.proposal-ai]
 verify_jwt = false
 
 [functions.generate-deliverable]
