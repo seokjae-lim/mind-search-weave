@@ -223,6 +223,9 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   const lastMouse = useRef({ x: 0, y: 0 });
   const [, forceUpdate] = useState(0);
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -701,6 +704,67 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     animRef.current = requestAnimationFrame(render);
   };
 
+  // ─── Context menu actions ───
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const node = findNodeAt(wx, wy);
+    if (node) {
+      setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, node });
+    } else {
+      setContextMenu(null);
+    }
+  };
+
+  const ctxToggleExpand = () => {
+    if (!contextMenu) return;
+    const node = contextMenu.node;
+    node.expanded = !node.expanded;
+    layoutTree(rootRef.current!, dimensions.width / 2, dimensions.height / 2);
+    setContextMenu(null);
+    forceUpdate((n) => n + 1);
+    animRef.current = requestAnimationFrame(render);
+  };
+
+  const ctxExpandSubtree = () => {
+    if (!contextMenu) return;
+    const expandAll = (n: MindMapNode) => { n.expanded = true; n.children.forEach(expandAll); };
+    expandAll(contextMenu.node);
+    layoutTree(rootRef.current!, dimensions.width / 2, dimensions.height / 2);
+    setContextMenu(null);
+    forceUpdate((n) => n + 1);
+    animRef.current = requestAnimationFrame(render);
+  };
+
+  const ctxCollapseSubtree = () => {
+    if (!contextMenu) return;
+    const collapseAll = (n: MindMapNode) => { n.expanded = false; n.children.forEach(collapseAll); };
+    contextMenu.node.children.forEach(collapseAll);
+    layoutTree(rootRef.current!, dimensions.width / 2, dimensions.height / 2);
+    setContextMenu(null);
+    forceUpdate((n) => n + 1);
+    animRef.current = requestAnimationFrame(render);
+  };
+
+  const ctxFocusNode = () => {
+    if (!contextMenu) return;
+    const node = contextMenu.node;
+    const cx = dimensions.width / 2;
+    const cy = dimensions.height / 2;
+    setPan({ x: cx - node.x * zoom, y: cy - node.y * zoom });
+    setZoom(1.5);
+    setContextMenu(null);
+    forceUpdate((n) => n + 1);
+  };
+
+  const ctxGoToDoc = () => {
+    if (!contextMenu) return;
+    navigate(`/doc/${encodeURIComponent(contextMenu.node.path)}`);
+    setContextMenu(null);
+  };
+
   return (
     <div className="relative w-full h-full" ref={containerRef}>
       {/* Search bar */}
@@ -812,13 +876,57 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         ref={canvasRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
         style={{ width: dimensions.width, height: dimensions.height }}
-        onMouseDown={handleMouseDown}
+        onMouseDown={(e) => { setContextMenu(null); handleMouseDown(e); }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { draggingNode.current = null; isPanning.current = false; setHoveredId(null); }}
         onClick={handleClick}
         onWheel={handleWheel}
+        onContextMenu={handleContextMenu}
       />
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
+          <div
+            className="absolute z-30 min-w-[180px] rounded-lg border border-border bg-popover text-popover-foreground shadow-xl py-1 animate-in fade-in-0 zoom-in-95"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground truncate max-w-[200px]">
+              {contextMenu.node.label}
+            </div>
+            <div className="h-px bg-border my-1" />
+
+            {!contextMenu.node.id.startsWith("file:") && contextMenu.node.children.length > 0 && (
+              <>
+                <button onClick={ctxToggleExpand} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
+                  {contextMenu.node.expanded ? "📁 접기" : "📂 펼치기"}
+                </button>
+                <button onClick={ctxExpandSubtree} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
+                  📂 하위 전체 펼치기
+                </button>
+                {contextMenu.node.expanded && (
+                  <button onClick={ctxCollapseSubtree} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
+                    📁 하위 전체 접기
+                  </button>
+                )}
+                <div className="h-px bg-border my-1" />
+              </>
+            )}
+
+            <button onClick={ctxFocusNode} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
+              🔍 이 노드로 포커스
+            </button>
+
+            {contextMenu.node.id.startsWith("file:") && (
+              <button onClick={ctxGoToDoc} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
+                📄 문서 상세 보기
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
