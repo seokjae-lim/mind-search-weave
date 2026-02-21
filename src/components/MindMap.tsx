@@ -228,6 +228,9 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [activeResultIndex, setActiveResultIndex] = useState(0);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
+  const MINIMAP_W = 180;
+  const MINIMAP_H = 120;
 
   // Build tree
   useEffect(() => {
@@ -460,6 +463,80 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
 
     ctx.restore();
 
+    // ─── Minimap ───
+    const miniCanvas = minimapRef.current;
+    if (miniCanvas) {
+      const mCtx = miniCanvas.getContext("2d");
+      if (mCtx) {
+        const mdpr = window.devicePixelRatio || 1;
+        miniCanvas.width = MINIMAP_W * mdpr;
+        miniCanvas.height = MINIMAP_H * mdpr;
+        mCtx.scale(mdpr, mdpr);
+
+        // Background
+        mCtx.fillStyle = "hsl(222, 47%, 8%)";
+        mCtx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
+
+        // Compute bounds of all visible nodes
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        visible.forEach((n) => {
+          if (n.x < minX) minX = n.x;
+          if (n.y < minY) minY = n.y;
+          if (n.x > maxX) maxX = n.x;
+          if (n.y > maxY) maxY = n.y;
+        });
+
+        const pad = 60;
+        minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+        const worldW = Math.max(maxX - minX, 1);
+        const worldH = Math.max(maxY - minY, 1);
+        const scale = Math.min((MINIMAP_W - 10) / worldW, (MINIMAP_H - 10) / worldH);
+        const offX = (MINIMAP_W - worldW * scale) / 2;
+        const offY = (MINIMAP_H - worldH * scale) / 2;
+
+        const toMini = (wx: number, wy: number) => ({
+          mx: (wx - minX) * scale + offX,
+          my: (wy - minY) * scale + offY,
+        });
+
+        // Draw edges
+        mCtx.lineWidth = 0.5;
+        visible.forEach((n) => {
+          if (!n.expanded) return;
+          n.children.forEach((c) => {
+            const p1 = toMini(n.x, n.y);
+            const p2 = toMini(c.x, c.y);
+            mCtx.beginPath();
+            mCtx.moveTo(p1.mx, p1.my);
+            mCtx.lineTo(p2.mx, p2.my);
+            mCtx.strokeStyle = `${getColor(c.depth)}66`;
+            mCtx.stroke();
+          });
+        });
+
+        // Draw nodes as dots
+        visible.forEach((n) => {
+          const { mx, my } = toMini(n.x, n.y);
+          const r = n.depth === 0 ? 3 : 1.5;
+          mCtx.beginPath();
+          mCtx.arc(mx, my, r, 0, Math.PI * 2);
+          mCtx.fillStyle = getColor(n.depth);
+          mCtx.fill();
+        });
+
+        // Draw viewport rect
+        const vpLeft = -pan.x / zoom;
+        const vpTop = -pan.y / zoom;
+        const vpW = dimensions.width / zoom;
+        const vpH = dimensions.height / zoom;
+        const vp1 = toMini(vpLeft, vpTop);
+        const vp2 = toMini(vpLeft + vpW, vpTop + vpH);
+        mCtx.strokeStyle = "hsl(45, 100%, 60%)";
+        mCtx.lineWidth = 1.5;
+        mCtx.strokeRect(vp1.mx, vp1.my, vp2.mx - vp1.mx, vp2.my - vp1.my);
+      }
+    }
+
     if (!isSettled(root)) {
       animRef.current = requestAnimationFrame(render);
     }
@@ -650,6 +727,48 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={collapseAll}>
           <Minus className="h-3 w-3 mr-1" /> 전체 접기
         </Button>
+      </div>
+
+      {/* Minimap */}
+      <div className="absolute bottom-3 right-3 z-10 rounded-lg overflow-hidden border border-border shadow-lg bg-background/90 backdrop-blur-sm">
+        <canvas
+          ref={minimapRef}
+          style={{ width: MINIMAP_W, height: MINIMAP_H, cursor: "crosshair" }}
+          onClick={(e) => {
+            // Click on minimap to navigate
+            const root = rootRef.current;
+            if (!root) return;
+            const rect = minimapRef.current?.getBoundingClientRect();
+            if (!rect) return;
+
+            const visible = collectVisible(root);
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            visible.forEach((n) => {
+              if (n.x < minX) minX = n.x;
+              if (n.y < minY) minY = n.y;
+              if (n.x > maxX) maxX = n.x;
+              if (n.y > maxY) maxY = n.y;
+            });
+            const pad = 60;
+            minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+            const worldW = Math.max(maxX - minX, 1);
+            const worldH = Math.max(maxY - minY, 1);
+            const scale = Math.min((MINIMAP_W - 10) / worldW, (MINIMAP_H - 10) / worldH);
+            const offX = (MINIMAP_W - worldW * scale) / 2;
+            const offY = (MINIMAP_H - worldH * scale) / 2;
+
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const worldClickX = (clickX - offX) / scale + minX;
+            const worldClickY = (clickY - offY) / scale + minY;
+
+            setPan({
+              x: dimensions.width / 2 - worldClickX * zoom,
+              y: dimensions.height / 2 - worldClickY * zoom,
+            });
+            forceUpdate((n) => n + 1);
+          }}
+        />
       </div>
 
       {/* Hint */}
