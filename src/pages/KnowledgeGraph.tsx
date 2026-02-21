@@ -35,11 +35,11 @@ const EDGE_LABELS: Record<GraphEdgeType, string> = {
 
 // Map node IDs to file paths for navigation
 const NODE_FILE_MAP: Record<string, string> = {
-  d1: "국가중점데이터/최종보고.pptx",
-  d2: "국가중점데이터/기관현황조사.pdf",
-  d3: "디지털플랫폼정부/DPG_제안서_v3.pptx",
-  d4: "AI분석플랫폼/AI플랫폼_제안서.pptx",
-  d5: "스마트시티/스마트시티_ISP.pptx",
+  d1: "국가중점데이터/03.제안서/최종본/최종보고.pptx",
+  d2: "국가중점데이터/04.수행/현황분석/기관현황조사.pdf",
+  d3: "디지털플랫폼정부/02.제안서/DPG_제안서_v3.pptx",
+  d4: "AI분석플랫폼/03.제안서/AI플랫폼_제안서.pptx",
+  d5: "스마트시티/03.제안서/스마트시티_ISP_최종.pptx",
 };
 
 // ─── Mock graph data (expanded ontology) ───

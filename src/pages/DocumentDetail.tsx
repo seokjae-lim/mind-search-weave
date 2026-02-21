@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +35,8 @@ function getRelatedDocs(currentPath: string, projectPath: string): BrowseFile[] 
 const SUMMARY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-summary`;
 
 export default function DocumentDetailPage() {
-  const { filePath } = useParams<{ filePath: string }>();
-  const decodedPath = decodeURIComponent(filePath || "");
+  const { "*": splatPath } = useParams();
+  const decodedPath = decodeURIComponent(splatPath || "");
   const [chunks, setChunks] = useState<ChunkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();

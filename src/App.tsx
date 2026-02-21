@@ -36,7 +36,7 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/browse" element={<Browse />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/doc/:filePath" element={<DocumentDetail />} />
+                  <Route path="/doc/*" element={<DocumentDetail />} />
                   <Route path="/advanced-search" element={<AdvancedSearch />} />
                   <Route path="/ai-agent" element={<AIAgent />} />
                   <Route path="/visualization/wordcloud" element={<WordCloud />} />
