@@ -1,4 +1,4 @@
-import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, Home, Zap, GitBranchPlus } from "lucide-react";
+import { FolderOpen, BarChart3, Bot, Cloud, Network, Home, Zap } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -15,7 +15,6 @@ import {
 
 const menuItems = [
   { title: "홈", url: "/", icon: Home },
-  { title: "검색", url: "/", icon: Search, end: true },
   { title: "브라우징", url: "/browse", icon: FolderOpen },
   { title: "대시보드", url: "/dashboard", icon: BarChart3 },
 ];
@@ -60,7 +59,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.end}
+                      end
                       className="flex items-center gap-2"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >
