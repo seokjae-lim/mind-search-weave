@@ -1,4 +1,5 @@
 import { Search, FolderOpen, BarChart3 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -22,7 +23,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
             K
           </div>
@@ -30,7 +31,7 @@ export function AppSidebar() {
             <span className="text-sm font-semibold text-sidebar-foreground">Knowledge Wiki</span>
             <span className="text-xs text-sidebar-foreground/60">컨설팅 산출물 검색</span>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
