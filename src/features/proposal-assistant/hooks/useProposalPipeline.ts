@@ -336,12 +336,42 @@ export function useProposalPipeline() {
     );
   }, []);
 
+  const loadProject = useCallback(async (projectId: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const { data: proj, error: projErr } = await supabase
+        .from("proposal_projects")
+        .select("*")
+        .eq("id", projectId)
+        .single();
+      if (projErr || !proj) {
+        toast.error("프로젝트를 불러올 수 없습니다.");
+        return false;
+      }
+      setProject(proj as unknown as ProposalProject);
+
+      const { data: secs } = await supabase
+        .from("proposal_sections")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("sort_order", { ascending: true });
+      setSections((secs as unknown as ProposalRequirement[]) || []);
+      return true;
+    } catch {
+      toast.error("프로젝트 로딩 중 오류가 발생했습니다.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     project,
     sections,
     loading,
     stageLoading,
     createProject,
+    loadProject,
     extractRequirements,
     researchRequirement,
     researchAll,
