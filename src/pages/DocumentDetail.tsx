@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Copy, Clock, Sparkles, Eye, FileText, TrendingUp, Loader2 } from "lucide-react";
-import { doc as wikiDoc, parseTags } from "@/lib/wikiApi";
-import type { WikiDocDetail } from "@/lib/wikiApi";
+import { ArrowLeft, Copy, Clock, Sparkles, Eye, FileText, TrendingUp, Loader2, Search } from "lucide-react";
+import { doc as wikiDoc, similar as wikiSimilar, parseTags } from "@/lib/wikiApi";
+import type { WikiDocDetail, WikiChunk } from "@/lib/wikiApi";
 import { FileTypeIcon, FileTypeBadge } from "@/components/FileTypeIcon";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
@@ -27,15 +27,26 @@ export default function DocumentDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryDone, setSummaryDone] = useState(false);
 
+  // Vector similar documents
+  const [vectorSimilar, setVectorSimilar] = useState<WikiChunk[]>([]);
+  const [vectorLoading, setVectorLoading] = useState(false);
+
   useEffect(() => {
     if (!chunkId) return;
     setLoading(true);
     setSummaryText("");
     setSummaryDone(false);
+    setVectorSimilar([]);
     wikiDoc(chunkId).then((d) => {
       setDetail(d);
       setLoading(false);
     }).catch(() => setLoading(false));
+
+    // Fetch vector similar documents
+    setVectorLoading(true);
+    wikiSimilar(chunkId, 5).then((res) => {
+      setVectorSimilar(res.results.filter(r => r.chunk_id !== chunkId));
+    }).catch(() => {}).finally(() => setVectorLoading(false));
   }, [chunkId]);
 
   const copyPath = () => {
@@ -233,6 +244,41 @@ export default function DocumentDetailPage() {
               </Link>
             ))}
           </div>
+        </>
+      )}
+
+      {/* Vector Similar Documents */}
+      {(vectorLoading || vectorSimilar.length > 0) && (
+        <>
+          <Separator className="my-6" />
+          <h2 className="mb-3 text-sm font-semibold flex items-center gap-2">
+            <Search className="h-4 w-4" /> 벡터 유사 문서
+          </h2>
+          {vectorLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> 유사 문서 검색 중...
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {vectorSimilar.map((v) => {
+                const pct = v.similarity != null ? Math.round(v.similarity * 100) : null;
+                return (
+                  <Link key={v.chunk_id} to={`/doc/${encodeURIComponent(v.chunk_id)}`} className="block">
+                    <Card className="hover:border-primary/40 transition-colors cursor-pointer">
+                      <CardContent className="flex items-center gap-3 p-3">
+                        {pct !== null && (
+                          <span className="text-sm font-bold text-primary min-w-[40px]">{pct}%</span>
+                        )}
+                        <FileTypeIcon type={v.file_type as any} className="h-5 w-5 shrink-0" />
+                        <Badge className="text-[10px] shrink-0">{v.file_type.toUpperCase()}</Badge>
+                        <p className="text-sm font-medium truncate flex-1">{v.doc_title}</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
