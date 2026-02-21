@@ -35,11 +35,18 @@ export interface SearchResponse {
   took_ms: number;
 }
 
+export interface ProjectStats {
+  project_path: string;
+  file_count: number;
+  chunk_count: number;
+}
+
 export interface IndexStats {
   total_files: number;
   total_chunks: number;
   last_updated: string;
   by_type: Record<FileType, number>;
+  by_project: ProjectStats[];
   failed_files: FailedFile[];
 }
 
