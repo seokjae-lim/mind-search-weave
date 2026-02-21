@@ -43,9 +43,11 @@ import {
   Package,
   Copy,
   Check,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { exportProposalToPdf, exportProposalToExcel } from "../lib/exportUtils";
 
 const STAGES = [
   { key: "extract", label: "요구사항 추출", icon: ListChecks, step: 1 },
@@ -322,14 +324,39 @@ const WorkflowPageInner = () => {
 
           {/* Sections / Results */}
           <Tabs defaultValue="sections" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="sections">요구사항 ({sections.length})</TabsTrigger>
-              <TabsTrigger value="deliverables" disabled={sections.length === 0}>
-                <Package className="w-3.5 h-3.5 mr-1" />
-                산출물
-              </TabsTrigger>
-              {project.merged_document && <TabsTrigger value="merged">통합 제안서</TabsTrigger>}
-            </TabsList>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <TabsList>
+                <TabsTrigger value="sections">요구사항 ({sections.length})</TabsTrigger>
+                <TabsTrigger value="deliverables" disabled={sections.length === 0}>
+                  <Package className="w-3.5 h-3.5 mr-1" />
+                  산출물
+                </TabsTrigger>
+                {project.merged_document && <TabsTrigger value="merged">통합 제안서</TabsTrigger>}
+              </TabsList>
+
+              {sections.length > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => exportProposalToPdf(project, sections)}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    PDF
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => exportProposalToExcel(project, sections)}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Excel
+                  </Button>
+                </div>
+              )}
+            </div>
 
             <TabsContent value="sections">
               <div className="space-y-3">
