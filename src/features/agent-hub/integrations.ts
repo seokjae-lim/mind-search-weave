@@ -97,7 +97,7 @@ export const externalTools: QuickAction[] = [
     title: "Liner Write",
     description: "AI 기반 문서 작성 도우미입니다.",
     icon: Pen,
-    externalUrl: "https://liner.ai",
+    externalUrl: "https://write.liner.com/ko",
     category: "external",
   },
   {
