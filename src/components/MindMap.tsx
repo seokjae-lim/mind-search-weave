@@ -259,6 +259,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const [, forceUpdate] = useState(0);
@@ -701,6 +702,11 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
     const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     const node = findNodeAt(wx, wy);
     setHoveredId(node?.id || null);
+    if (node) {
+      setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    } else {
+      setHoverPos(null);
+    }
   };
 
   const handleMouseUp = () => {
@@ -1091,6 +1097,40 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
           </div>
         </>
       )}
+
+      {/* Hover Tooltip */}
+      {hoveredId && hoverPos && !filePopup && !contextMenu && (() => {
+        const isFile = hoveredId.startsWith("file:");
+        if (!isFile) return null;
+        const matchedFile = files.find(f => `file:${f.file_path}` === hoveredId);
+        if (!matchedFile) return null;
+        const ft = matchedFile.file_type;
+        const fc = getFileColor(ft);
+        return (
+          <div
+            className="absolute z-20 pointer-events-none w-56 rounded-lg border border-border bg-popover/95 backdrop-blur-sm text-popover-foreground shadow-xl px-3 py-2.5 space-y-1 animate-in fade-in-0 duration-150"
+            style={{ left: Math.min(hoverPos.x + 12, dimensions.width - 240), top: Math.max(hoverPos.y - 80, 8) }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm border"
+                style={{ background: fc.bg, borderColor: fc.accent }}
+              />
+              <span className="text-xs font-semibold truncate">{matchedFile.doc_title}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground truncate" title={matchedFile.file_path}>
+              📂 {matchedFile.file_path}
+            </p>
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span>🧩 {matchedFile.chunk_count} chunks</span>
+              <span>📅 {new Date(matchedFile.mtime).toLocaleDateString("ko-KR")}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
+              {FILE_TYPE_LABELS[ft] || ft || "파일"}
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
