@@ -1,0 +1,718 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import ModelSelector from "../components/ModelSelector";
+import AuthModal from "../components/AuthModal";
+import { useAuth } from "../hooks/useAuth";
+import {
+  useProposalPipeline,
+  ProposalRequirement,
+  RESEARCH_STEPS,
+  type DeepResearchData,
+  type ResearchStepData,
+} from "../hooks/useProposalPipeline";
+import { useAnalysisContext, AnalysisProvider } from "../contexts/AnalysisContext";
+import {
+  Play,
+  ListChecks,
+  Search,
+  FileEdit,
+  Merge,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  StickyNote,
+  Zap,
+  ClipboardCheck,
+  BookOpen,
+  Cpu,
+  GitCompare,
+  FileText,
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const STAGES = [
+  { key: "extract", label: "요구사항 추출", icon: ListChecks, step: 1 },
+  { key: "research", label: "딥리서치", icon: Search, step: 2 },
+  { key: "draft", label: "초안 작성", icon: FileEdit, step: 3 },
+  { key: "merge", label: "통합 문서", icon: Merge, step: 4 },
+] as const;
+
+const stageOrder: Record<string, number> = { extract: 0, research: 1, draft: 2, merge: 3, completed: 4 };
+
+const STEP_ICONS: Record<string, React.ElementType> = {
+  "1_background": BookOpen,
+  "2_cases": Search,
+  "3_technology": Cpu,
+  "4_comparison": GitCompare,
+  "5_synthesis": FileText,
+};
+
+function getDeepResearch(data: Record<string, unknown> | null): DeepResearchData | null {
+  if (!data || !data.steps) return null;
+  return data as unknown as DeepResearchData;
+}
+
+const WorkflowPageInner = () => {
+  const [rfpInput, setRfpInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("google/gemini-3-flash-preview");
+  const [executionMode, setExecutionMode] = useState<"auto" | "plan">("plan");
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [notesValue, setNotesValue] = useState("");
+  const location = useLocation();
+
+  const { user, signUp, signIn } = useAuth();
+  const { rfpContent } = useAnalysisContext();
+
+  const {
+    project,
+    sections,
+    loading,
+    stageLoading,
+    createProject,
+    loadProject,
+    extractRequirements,
+    deepResearchRequirement,
+    researchAll,
+    draftSection,
+    draftAll,
+    mergeProposal,
+    runAutoMode,
+    updateSectionNotes,
+  } = useProposalPipeline();
+
+  // Load project from history navigation
+  useEffect(() => {
+    const state = location.state as { loadProjectId?: string } | null;
+    if (state?.loadProjectId && !project) {
+      loadProject(state.loadProjectId);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, project, loadProject]);
+
+  const handleStart = async () => {
+    if (!user) {
+      setAuthModalOpen(true);
+      return;
+    }
+
+    const content = rfpInput.trim() || rfpContent;
+    if (!content || content.length < 10) {
+      toast.error("RFP 내용을 입력해주세요 (최소 10자).");
+      return;
+    }
+
+    const projectId = await createProject(content, executionMode, selectedModel);
+    if (!projectId) return;
+
+    if (executionMode === "auto") {
+      await runAutoMode(projectId, content, selectedModel);
+    } else {
+      await extractRequirements(projectId, content, selectedModel);
+    }
+  };
+
+  const handleApproveStage = async () => {
+    if (!project) return;
+    const rfp = project.rfp_content;
+
+    if (project.current_stage === "extract" && project.stage_status === "completed") {
+      await researchAll(rfp, project.model);
+    } else if (project.current_stage === "research" && project.stage_status === "completed") {
+      await draftAll(project.model);
+    } else if (project.current_stage === "draft" && project.stage_status === "completed") {
+      await mergeProposal(project.model);
+    }
+  };
+
+  const currentStageIdx = project ? stageOrder[project.current_stage] ?? 0 : -1;
+  const progressValue = project
+    ? project.current_stage === "completed"
+      ? 100
+      : ((currentStageIdx + (project.stage_status === "completed" ? 1 : 0.5)) / 4) * 100
+    : 0;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge variant="default" className="bg-primary"><CheckCircle2 className="w-3 h-3 mr-1" />완료</Badge>;
+      case "running":
+        return <Badge variant="secondary"><Loader2 className="w-3 h-3 mr-1 animate-spin" />진행중</Badge>;
+      case "error":
+        return <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />오류</Badge>;
+      default:
+        return <Badge variant="outline">대기</Badge>;
+    }
+  };
+
+  const handleSaveNotes = async (sectionId: string) => {
+    await updateSectionNotes(sectionId, notesValue);
+    setEditingNotes(null);
+    toast.success("메모가 저장되었습니다.");
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-foreground mb-2">통합 제안서 워크플로우</h1>
+        <p className="text-muted-foreground">
+          RFP 요구사항 추출 → 5단계 딥리서치 → 제안서 초안 → 통합 문서까지 한 곳에서 관리합니다.
+        </p>
+      </div>
+
+      {/* Setup Section */}
+      {!project && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg">1. RFP 입력 및 실행 모드 설정</CardTitle>
+            <CardDescription>분석된 RFP가 있으면 자동으로 불러옵니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Textarea
+              value={rfpInput || rfpContent}
+              onChange={(e) => setRfpInput(e.target.value)}
+              placeholder="제안요청서(RFP) 내용을 붙여넣으세요..."
+              className="min-h-[200px]"
+            />
+
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-[250px]">
+                <ModelSelector selectedModel={selectedModel} onModelChange={setSelectedModel} />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant={executionMode === "auto" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setExecutionMode("auto")}
+                  className="gap-1.5"
+                >
+                  <Zap className="w-4 h-4" />
+                  자동 실행
+                </Button>
+                <Button
+                  variant={executionMode === "plan" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setExecutionMode("plan")}
+                  className="gap-1.5"
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                  단계별 승인
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {executionMode === "auto"
+                ? "🚀 자동 실행: 추출 → 5단계 딥리서치 → 초안 → 통합까지 모두 자동으로 실행됩니다."
+                : "📋 단계별 승인: 각 단계 완료 후 결과를 확인하고 승인 버튼을 눌러 다음 단계를 진행합니다."}
+            </p>
+
+            <Button onClick={handleStart} disabled={loading} className="w-full gap-2">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {loading ? "처리 중..." : "워크플로우 시작"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pipeline Progress */}
+      {project && (
+        <>
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  워크플로우 진행 상황
+                </span>
+                <span className="text-sm font-medium text-primary">{Math.round(progressValue)}%</span>
+              </div>
+              <Progress value={progressValue} className="h-2 mb-4" />
+
+              <div className="flex items-center justify-between">
+                {STAGES.map((stage, idx) => {
+                  const isCompleted = currentStageIdx > idx || project.current_stage === "completed";
+                  const isCurrent = currentStageIdx === idx;
+                  const Icon = stage.icon;
+
+                  return (
+                    <div key={stage.key} className="flex items-center flex-1">
+                      <div className="flex flex-col items-center flex-shrink-0">
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                            isCompleted && "bg-primary text-primary-foreground",
+                            isCurrent && !isCompleted && "bg-accent text-accent-foreground",
+                            !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="w-5 h-5" />
+                          ) : isCurrent && project.stage_status === "running" ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Icon className="w-5 h-5" />
+                          )}
+                        </div>
+                        <span className={cn(
+                          "mt-2 text-xs font-medium text-center",
+                          isCompleted && "text-primary font-semibold",
+                          isCurrent && "text-accent-foreground font-semibold",
+                          !isCompleted && !isCurrent && "text-muted-foreground"
+                        )}>
+                          {stage.label}
+                        </span>
+                      </div>
+                      {idx < STAGES.length - 1 && (
+                        <div className="flex-1 mx-2 h-0.5 relative">
+                          <div className="absolute inset-0 bg-muted rounded-full" />
+                          <div
+                            className={cn(
+                              "absolute inset-y-0 left-0 bg-primary rounded-full transition-all duration-500",
+                              currentStageIdx > idx + 1 || project.current_stage === "completed"
+                                ? "w-full"
+                                : currentStageIdx === idx + 1
+                                ? "w-1/2"
+                                : currentStageIdx > idx
+                                ? "w-full"
+                                : "w-0"
+                            )}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Approve button for plan mode */}
+              {project.execution_mode === "plan" &&
+                project.stage_status === "completed" &&
+                project.current_stage !== "completed" && (
+                  <div className="mt-4 flex justify-center">
+                    <Button onClick={handleApproveStage} disabled={stageLoading} className="gap-2">
+                      {stageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      다음 단계 승인 및 실행
+                    </Button>
+                  </div>
+                )}
+            </CardContent>
+          </Card>
+
+          {/* Sections / Results */}
+          <Tabs defaultValue="sections" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="sections">요구사항 ({sections.length})</TabsTrigger>
+              {project.merged_document && <TabsTrigger value="merged">통합 제안서</TabsTrigger>}
+            </TabsList>
+
+            <TabsContent value="sections">
+              <div className="space-y-3">
+                {sections.length === 0 && !stageLoading && (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">
+                      요구사항이 아직 추출되지 않았습니다.
+                    </CardContent>
+                  </Card>
+                )}
+
+                {sections.map((section) => (
+                  <SectionCard
+                    key={section.id}
+                    section={section}
+                    expanded={expandedSection === section.id}
+                    onToggle={() => setExpandedSection(expandedSection === section.id ? null : section.id)}
+                    onResearch={() => deepResearchRequirement(section, project!.rfp_content, project!.model)}
+                    onDraft={() => draftSection(section, project!.model)}
+                    editingNotes={editingNotes === section.id}
+                    notesValue={notesValue}
+                    onStartEditNotes={() => { setEditingNotes(section.id); setNotesValue(section.user_notes || ""); }}
+                    onNotesChange={setNotesValue}
+                    onSaveNotes={() => handleSaveNotes(section.id)}
+                    onCancelNotes={() => setEditingNotes(null)}
+                    getStatusBadge={getStatusBadge}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+
+            {project.merged_document && (
+              <TabsContent value="merged">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {(project.merged_document as Record<string, unknown>).title as string || "통합 제안서"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[600px]">
+                      <MergedDocumentView document={project.merged_document} />
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+          </Tabs>
+        </>
+      )}
+
+      <AuthModal
+        open={authModalOpen}
+        onOpenChange={setAuthModalOpen}
+        onSignUp={signUp}
+        onSignIn={signIn}
+      />
+    </div>
+  );
+};
+
+/* ---------- Sub-components ---------- */
+
+interface SectionCardProps {
+  section: ProposalRequirement;
+  expanded: boolean;
+  onToggle: () => void;
+  onResearch: () => void;
+  onDraft: () => void;
+  editingNotes: boolean;
+  notesValue: string;
+  onStartEditNotes: () => void;
+  onNotesChange: (v: string) => void;
+  onSaveNotes: () => void;
+  onCancelNotes: () => void;
+  getStatusBadge: (status: string) => React.ReactNode;
+}
+
+const SectionCard = ({
+  section, expanded, onToggle, onResearch, onDraft,
+  editingNotes, notesValue, onStartEditNotes, onNotesChange, onSaveNotes, onCancelNotes,
+  getStatusBadge,
+}: SectionCardProps) => {
+  const deep = getDeepResearch(section.research_data);
+
+  return (
+    <Card>
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Badge variant="outline" className="shrink-0">{section.requirement_number}</Badge>
+          <span className="font-medium truncate">{section.requirement_title}</span>
+          {section.category && (
+            <Badge variant="secondary" className="hidden sm:inline-flex">{section.category}</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {getStatusBadge(section.research_status)}
+          {getStatusBadge(section.draft_status)}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </div>
+      </div>
+
+      {expanded && (
+        <CardContent className="border-t space-y-4">
+          {section.requirement_description && (
+            <p className="text-sm text-muted-foreground">{section.requirement_description}</p>
+          )}
+
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => { e.stopPropagation(); onResearch(); }}
+              disabled={section.research_status === "running"}
+              className="gap-1.5"
+            >
+              {section.research_status === "running" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Search className="w-3 h-3" />
+              )}
+              {section.research_status === "completed" ? "재조사 (5단계)" : "딥리서치 시작"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => { e.stopPropagation(); onDraft(); }}
+              disabled={section.draft_status === "running" || section.research_status !== "completed"}
+              className="gap-1.5"
+            >
+              {section.draft_status === "running" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <FileEdit className="w-3 h-3" />
+              )}
+              {section.draft_status === "completed" ? "재작성" : "초안 작성"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); onStartEditNotes(); }}
+              className="gap-1.5"
+            >
+              <StickyNote className="w-3 h-3" />
+              참고사항
+            </Button>
+          </div>
+
+          {editingNotes && (
+            <div className="space-y-2">
+              <Textarea
+                value={notesValue}
+                onChange={(e) => onNotesChange(e.target.value)}
+                placeholder="이 요구사항에 대한 참고사항이나 추가 자료를 입력하세요..."
+                className="min-h-[80px]"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={(e) => { e.stopPropagation(); onSaveNotes(); }}>저장</Button>
+                <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onCancelNotes(); }}>취소</Button>
+              </div>
+            </div>
+          )}
+
+          {/* 5-Step Deep Research Progress */}
+          {deep && (
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <Search className="w-4 h-4 text-primary" />
+                딥리서치 진행 현황
+              </h4>
+              <div className="space-y-2">
+                {RESEARCH_STEPS.map((rs) => {
+                  const stepData = deep.steps[rs.key] as ResearchStepData | undefined;
+                  const status = stepData?.status || "pending";
+                  const Icon = STEP_ICONS[rs.key] || Search;
+
+                  return (
+                    <DeepResearchStepView
+                      key={rs.key}
+                      stepNum={rs.step}
+                      label={rs.label}
+                      icon={Icon}
+                      status={status}
+                      data={stepData?.data || null}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Legacy research data (non-deep) */}
+          {section.research_data && !deep && (
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <Search className="w-4 h-4 text-primary" />
+                자료조사 결과
+              </h4>
+              <LegacyResearchView data={section.research_data} />
+            </div>
+          )}
+
+          {section.draft_content && (
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <FileEdit className="w-4 h-4 text-primary" />
+                제안서 초안
+              </h4>
+              <DraftContentView data={section.draft_content} />
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+};
+
+/* Deep Research Step View */
+const DeepResearchStepView = ({
+  stepNum, label, icon: Icon, status, data,
+}: {
+  stepNum: number;
+  label: string;
+  icon: React.ElementType;
+  status: string;
+  data: Record<string, unknown> | null;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border rounded-lg">
+      <button
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors"
+        onClick={() => data && setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "w-6 h-6 rounded-full flex items-center justify-center text-xs",
+            status === "completed" && "bg-primary text-primary-foreground",
+            status === "running" && "bg-accent text-accent-foreground",
+            status === "error" && "bg-destructive text-destructive-foreground",
+            status === "pending" && "bg-muted text-muted-foreground",
+          )}>
+            {status === "running" ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : status === "completed" ? (
+              <CheckCircle2 className="w-3 h-3" />
+            ) : status === "error" ? (
+              <AlertCircle className="w-3 h-3" />
+            ) : (
+              stepNum
+            )}
+          </div>
+          <Icon className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        {data && (
+          expanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />
+        )}
+      </button>
+      {expanded && data && (
+        <div className="px-3 pb-3 border-t">
+          <ScrollArea className="max-h-60 mt-2">
+            <ResearchStepContent stepNum={stepNum} data={data} />
+          </ScrollArea>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* Render each step's structured data */
+const ResearchStepContent = ({ stepNum, data }: { stepNum: number; data: Record<string, unknown> }) => (
+  <div className="text-sm space-y-2">
+    {Object.entries(data).map(([key, value]) => {
+      if (key === "step_title") return null;
+      const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      if (typeof value === "string") {
+        return (
+          <div key={key}>
+            <strong className="text-xs text-muted-foreground">{label}:</strong>
+            <p className="mt-0.5 whitespace-pre-wrap">{value}</p>
+          </div>
+        );
+      }
+      if (Array.isArray(value)) {
+        return (
+          <div key={key}>
+            <strong className="text-xs text-muted-foreground">{label}:</strong>
+            <ul className="mt-0.5 list-disc list-inside space-y-0.5">
+              {value.map((item, i) => (
+                <li key={i} className="text-sm">
+                  {typeof item === "string" ? item : JSON.stringify(item, null, 1)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+      if (typeof value === "object" && value !== null) {
+        return (
+          <div key={key}>
+            <strong className="text-xs text-muted-foreground">{label}:</strong>
+            <pre className="mt-0.5 text-xs bg-muted/50 p-2 rounded whitespace-pre-wrap">
+              {JSON.stringify(value, null, 2)}
+            </pre>
+          </div>
+        );
+      }
+      return null;
+    })}
+  </div>
+);
+
+const LegacyResearchView = ({ data }: { data: Record<string, unknown> }) => (
+  <div className="text-sm space-y-2">
+    {data.summary && <p>{data.summary as string}</p>}
+    {data.background && (
+      <div>
+        <strong className="text-xs text-muted-foreground">배경 분석:</strong>
+        <p className="mt-1">{data.background as string}</p>
+      </div>
+    )}
+    {Array.isArray(data.best_practices) && data.best_practices.length > 0 && (
+      <div>
+        <strong className="text-xs text-muted-foreground">모범 사례:</strong>
+        <ul className="mt-1 list-disc list-inside space-y-0.5">
+          {(data.best_practices as string[]).map((bp, i) => <li key={i}>{bp}</li>)}
+        </ul>
+      </div>
+    )}
+  </div>
+);
+
+const DraftContentView = ({ data }: { data: Record<string, unknown> }) => (
+  <div className="text-sm space-y-3">
+    {data.section_title && <h5 className="font-semibold">{data.section_title as string}</h5>}
+    {data.understanding && (
+      <div>
+        <strong className="text-xs text-muted-foreground">요구사항 이해:</strong>
+        <p className="mt-1 whitespace-pre-wrap">{data.understanding as string}</p>
+      </div>
+    )}
+    {data.approach && (
+      <div>
+        <strong className="text-xs text-muted-foreground">접근 방안:</strong>
+        <p className="mt-1 whitespace-pre-wrap">{data.approach as string}</p>
+      </div>
+    )}
+    {data.implementation_plan && (
+      <div>
+        <strong className="text-xs text-muted-foreground">구현 계획:</strong>
+        <p className="mt-1 whitespace-pre-wrap">{data.implementation_plan as string}</p>
+      </div>
+    )}
+    {data.expected_outcomes && (
+      <div>
+        <strong className="text-xs text-muted-foreground">기대 효과:</strong>
+        <p className="mt-1 whitespace-pre-wrap">{data.expected_outcomes as string}</p>
+      </div>
+    )}
+  </div>
+);
+
+const MergedDocumentView = ({ document }: { document: Record<string, unknown> }) => (
+  <div className="prose prose-sm max-w-none dark:prose-invert">
+    {document.title && <h2>{document.title as string}</h2>}
+    {document.executive_summary && (
+      <div className="bg-primary/5 border-l-4 border-primary p-4 rounded-r-lg mb-6">
+        <h3 className="text-base font-semibold mt-0">경영진 요약</h3>
+        <p>{document.executive_summary as string}</p>
+      </div>
+    )}
+    {Array.isArray(document.sections) &&
+      (document.sections as Array<Record<string, string>>).map((sec, i) => (
+        <div key={i} className="mb-6">
+          <h3>{sec.section_number}. {sec.title}</h3>
+          <div className="whitespace-pre-wrap">{sec.content}</div>
+        </div>
+      ))}
+    {document.conclusion && (
+      <div className="mt-8 border-t pt-4">
+        <h3>결론 및 기대효과</h3>
+        <p className="whitespace-pre-wrap">{document.conclusion as string}</p>
+      </div>
+    )}
+  </div>
+);
+
+export default function WorkflowPage() {
+  return (
+    <AnalysisProvider>
+      <WorkflowPageInner />
+    </AnalysisProvider>
+  );
+}

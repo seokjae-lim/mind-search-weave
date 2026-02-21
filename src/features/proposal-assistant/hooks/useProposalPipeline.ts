@@ -2,6 +2,25 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export const RESEARCH_STEPS = [
+  { step: 1, key: "1_background", label: "배경분석", icon: "BookOpen" },
+  { step: 2, key: "2_cases", label: "사례조사", icon: "Search" },
+  { step: 3, key: "3_technology", label: "기술분석", icon: "Cpu" },
+  { step: 4, key: "4_comparison", label: "비교분석", icon: "GitCompare" },
+  { step: 5, key: "5_synthesis", label: "종합보고서", icon: "FileText" },
+] as const;
+
+export interface ResearchStepData {
+  status: "pending" | "running" | "completed" | "error";
+  data: Record<string, unknown> | null;
+}
+
+export interface DeepResearchData {
+  steps: Record<string, ResearchStepData>;
+  current_step: number;
+  completed: boolean;
+}
+
 export interface ProposalRequirement {
   id: string;
   requirement_number: string;
@@ -31,6 +50,19 @@ export interface ProposalProject {
 
 type Stage = ProposalProject["current_stage"];
 type StageStatus = ProposalProject["stage_status"];
+
+function initDeepResearch(): DeepResearchData {
+  const steps: Record<string, ResearchStepData> = {};
+  for (const s of RESEARCH_STEPS) {
+    steps[s.key] = { status: "pending", data: null };
+  }
+  return { steps, current_step: 0, completed: false };
+}
+
+function getDeepResearch(researchData: Record<string, unknown> | null): DeepResearchData | null {
+  if (!researchData || !researchData.steps) return null;
+  return researchData as unknown as DeepResearchData;
+}
 
 export function useProposalPipeline() {
   const [project, setProject] = useState<ProposalProject | null>(null);
@@ -126,24 +158,39 @@ export function useProposalPipeline() {
     }
   }, [updateProjectState]);
 
-  const researchRequirement = useCallback(async (
+  // ── 5-Step Deep Research ──
+
+  const deepResearchStep = useCallback(async (
     section: ProposalRequirement,
+    stepNum: number,
     rfpContent: string,
-    model: string
-  ) => {
+    model: string,
+    previousResults?: unknown
+  ): Promise<Record<string, unknown> | null> => {
+    const stepKey = RESEARCH_STEPS[stepNum - 1].key;
+
+    // Update local state to show running
     setSections(prev =>
-      prev.map(s => s.id === section.id ? { ...s, research_status: "running" as const } : s)
+      prev.map(s => {
+        if (s.id !== section.id) return s;
+        const deep = getDeepResearch(s.research_data) || initDeepResearch();
+        deep.steps[stepKey] = { status: "running", data: null };
+        deep.current_step = stepNum;
+        return { ...s, research_data: deep as unknown as Record<string, unknown>, research_status: "running" as const };
+      })
     );
 
     try {
       const { data, error } = await supabase.functions.invoke("proposal-ai", {
         body: {
-          mode: "research",
+          mode: "deep-research",
+          researchStep: stepNum,
           requirementTitle: section.requirement_title,
           requirementDescription: section.requirement_description,
           category: section.category,
           rfpContext: rfpContent.substring(0, 5000),
           userNotes: section.user_notes,
+          previousResults,
           model,
         },
       });
@@ -151,33 +198,82 @@ export function useProposalPipeline() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      await supabase
-        .from("proposal_sections")
-        .update({ research_data: data.data, research_status: "completed" })
-        .eq("id", section.id);
+      const stepData = data.data;
 
+      // Update local state
       setSections(prev =>
-        prev.map(s =>
-          s.id === section.id
-            ? { ...s, research_data: data.data, research_status: "completed" as const }
-            : s
-        )
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const deep = getDeepResearch(s.research_data) || initDeepResearch();
+          deep.steps[stepKey] = { status: "completed", data: stepData };
+          deep.current_step = stepNum;
+          const allDone = RESEARCH_STEPS.every(rs => deep.steps[rs.key]?.status === "completed");
+          deep.completed = allDone;
+          return {
+            ...s,
+            research_data: deep as unknown as Record<string, unknown>,
+            research_status: allDone ? "completed" as const : "running" as const,
+          };
+        })
       );
-      return true;
+
+      return stepData;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "조사 실패";
-      await supabase
-        .from("proposal_sections")
-        .update({ research_status: "error" })
-        .eq("id", section.id);
 
       setSections(prev =>
-        prev.map(s => s.id === section.id ? { ...s, research_status: "error" as const } : s)
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const deep = getDeepResearch(s.research_data) || initDeepResearch();
+          deep.steps[stepKey] = { status: "error", data: null };
+          return { ...s, research_data: deep as unknown as Record<string, unknown>, research_status: "error" as const };
+        })
       );
-      toast.error(`"${section.requirement_title}" 조사 실패: ${msg}`);
-      return false;
+
+      toast.error(`"${section.requirement_title}" Step ${stepNum} 실패: ${msg}`);
+      return null;
     }
   }, []);
+
+  const deepResearchRequirement = useCallback(async (
+    section: ProposalRequirement,
+    rfpContent: string,
+    model: string
+  ): Promise<boolean> => {
+    const allStepResults: Record<string, unknown> = {};
+
+    for (const rs of RESEARCH_STEPS) {
+      // Build previous results for context
+      const prevForStep = rs.step <= 2
+        ? (allStepResults[RESEARCH_STEPS[0].key] || undefined)
+        : allStepResults;
+
+      const result = await deepResearchStep(section, rs.step, rfpContent, model, prevForStep);
+      if (!result) return false;
+
+      allStepResults[rs.key] = result;
+
+      // Save intermediate to DB
+      const currentSection = sections.find(s => s.id === section.id) || section;
+      const deep = getDeepResearch(currentSection.research_data) || initDeepResearch();
+      deep.steps[rs.key] = { status: "completed", data: result };
+      deep.current_step = rs.step;
+      deep.completed = rs.step === 5;
+
+      await supabase
+        .from("proposal_sections")
+        .update({
+          research_data: JSON.parse(JSON.stringify(deep)),
+          research_status: rs.step === 5 ? "completed" : "running",
+        })
+        .eq("id", section.id);
+
+      // Rate limit delay
+      if (rs.step < 5) await new Promise(r => setTimeout(r, 1000));
+    }
+
+    return true;
+  }, [sections, deepResearchStep]);
 
   const researchAll = useCallback(async (rfpContent: string, model: string) => {
     setStageLoading(true);
@@ -186,7 +282,7 @@ export function useProposalPipeline() {
     let allSuccess = true;
     for (const section of sections) {
       if (section.research_status === "completed") continue;
-      const ok = await researchRequirement(section, rfpContent, model);
+      const ok = await deepResearchRequirement(section, rfpContent, model);
       if (!ok) allSuccess = false;
       await new Promise(r => setTimeout(r, 500));
     }
@@ -194,10 +290,19 @@ export function useProposalPipeline() {
     if (project) {
       await updateProjectState(project.id, "research", allSuccess ? "completed" : "error");
     }
-    if (allSuccess) toast.success("전체 자료조사가 완료되었습니다.");
+    if (allSuccess) toast.success("전체 딥리서치가 완료되었습니다.");
     setStageLoading(false);
     return allSuccess;
-  }, [project, sections, researchRequirement, updateProjectState]);
+  }, [project, sections, deepResearchRequirement, updateProjectState]);
+
+  // Legacy single-shot research (backward compat)
+  const researchRequirement = useCallback(async (
+    section: ProposalRequirement,
+    rfpContent: string,
+    model: string
+  ) => {
+    return deepResearchRequirement(section, rfpContent, model);
+  }, [deepResearchRequirement]);
 
   const draftSection = useCallback(async (section: ProposalRequirement, model: string) => {
     setSections(prev =>
@@ -374,6 +479,8 @@ export function useProposalPipeline() {
     loadProject,
     extractRequirements,
     researchRequirement,
+    deepResearchRequirement,
+    deepResearchStep,
     researchAll,
     draftSection,
     draftAll,
@@ -382,5 +489,6 @@ export function useProposalPipeline() {
     updateSectionNotes,
     setSections,
     setProject,
+    RESEARCH_STEPS,
   };
 }

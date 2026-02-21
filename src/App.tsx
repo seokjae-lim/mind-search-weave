@@ -19,11 +19,9 @@ import NotFound from "./pages/NotFound";
 // Agent Hub
 import AgentHubPage from "./features/agent-hub/AgentHubPage";
 
-// Proposal Assistant stubs
+// Proposal Assistant
 import AnalysisPage from "./features/proposal-assistant/pages/AnalysisPage";
-import ProposalPage from "./features/proposal-assistant/pages/ProposalPage";
-import ResearchPage from "./features/proposal-assistant/pages/ResearchPage";
-import DeliverablesPage from "./features/proposal-assistant/pages/DeliverablesPage";
+import WorkflowPage from "./features/proposal-assistant/pages/WorkflowPage";
 import HistoryPage from "./features/proposal-assistant/pages/HistoryPage";
 import SettingsPage from "./features/proposal-assistant/pages/SettingsPage";
 
@@ -58,9 +56,8 @@ const App = () => (
 
                   {/* Proposal Assistant */}
                   <Route path="/assistant/analysis" element={<AnalysisPage />} />
-                  <Route path="/assistant/proposal" element={<ProposalPage />} />
-                  <Route path="/assistant/research" element={<ResearchPage />} />
-                  <Route path="/assistant/deliverables" element={<DeliverablesPage />} />
+                  <Route path="/assistant/workflow" element={<WorkflowPage />} />
+                  <Route path="/assistant/proposal" element={<WorkflowPage />} />
                   <Route path="/assistant/history" element={<HistoryPage />} />
                   <Route path="/assistant/settings" element={<SettingsPage />} />
 
