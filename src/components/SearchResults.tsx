@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, ArrowLeft, SlidersHorizontal } from "lucide-react";
+import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, ArrowLeft, SlidersHorizontal, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +17,22 @@ import { LocationBadge } from "@/components/LocationBadge";
 import { useToast } from "@/hooks/use-toast";
 
 const FILE_TYPES: FileType[] = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
+const PAGE_SIZE = 5;
+
+const RELATED_KEYWORDS: Record<string, string[]> = {
+  "데이터": ["품질관리", "메타데이터", "표준화", "API", "교통"],
+  "AI": ["MLOps", "Kubeflow", "GPT-4o", "전처리", "모델"],
+  "클라우드": ["K8s", "마이크로서비스", "API Gateway", "제로트러스트"],
+  "default": ["데이터", "AI", "클라우드", "IoT", "스마트시티"],
+};
+
+function getRelatedKeywords(query: string): string[] {
+  const q = query.toLowerCase();
+  for (const [key, kws] of Object.entries(RELATED_KEYWORDS)) {
+    if (key !== "default" && q.includes(key.toLowerCase())) return kws;
+  }
+  return RELATED_KEYWORDS.default;
+}
 
 function highlightQuery(text: string, query: string): string {
   if (!query.trim()) return text;
@@ -38,14 +54,19 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   const [sortBy, setSortBy] = useState<"relevance" | "recent">("relevance");
   const [selectedChunk, setSelectedChunk] = useState<ChunkRecord | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const totalPages = Math.max(1, Math.ceil(results.results.length / PAGE_SIZE));
+  const paginatedResults = results.results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const relatedKeywords = getRelatedKeywords(query);
 
   const doSearch = async (q?: string) => {
     const searchQuery = q ?? query;
     if (!searchQuery.trim()) return;
     setLoading(true);
+    setPage(1);
     try {
       const res = await searchChunks({ query: searchQuery, types: selectedTypes.length ? selectedTypes : undefined, sort: sortBy });
       setResults(res);
@@ -56,6 +77,11 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") doSearch();
+  };
+
+  const handleKeywordClick = (kw: string) => {
+    setQuery(kw);
+    doSearch(kw);
   };
 
   const openDetail = async (chunkId: string) => {
@@ -80,7 +106,6 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
       {/* Filter Panel */}
       <aside className="hidden w-56 shrink-0 border-r bg-card p-4 lg:block">
         <h3 className="mb-3 text-sm font-semibold text-foreground">필터</h3>
-
         <div className="mb-4">
           <Label className="mb-2 block text-xs text-muted-foreground">파일 타입</Label>
           <div className="space-y-2">
@@ -93,20 +118,16 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
             ))}
           </div>
         </div>
-
         <div className="mb-4">
           <Label className="mb-2 block text-xs text-muted-foreground">정렬</Label>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as "relevance" | "recent")}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="relevance">관련도순</SelectItem>
               <SelectItem value="recent">최근수정순</SelectItem>
             </SelectContent>
           </Select>
         </div>
-
         {selectedTypes.length > 0 && (
           <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setSelectedTypes([])}>
             필터 초기화
@@ -128,26 +149,57 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="키워드 검색 (기관명, 시스템명, 데이터명 등)"
+                placeholder="결과 내 재검색"
                 className="pl-9 h-10"
               />
             </div>
             <Button onClick={() => doSearch()} disabled={loading} size="sm">
               {loading ? "검색 중..." : "검색"}
             </Button>
-            <Button variant="outline" size="icon" className="lg:hidden shrink-0" onClick={() => setShowFilters(!showFilters)}>
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
-        {/* Results */}
         <div className="mx-auto max-w-3xl p-4">
+          {/* AI Summary Snippet */}
+          <Card className="mb-4 border-primary/20 bg-primary/5">
+            <CardContent className="p-4 flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-primary mb-1">AI 요약</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  '<span className="font-semibold text-foreground">{results.query}</span>' 관련하여 총 {results.total}건의 문서가 발견되었습니다.
+                  {results.total > 0 && ` 주요 프로젝트: ${[...new Set(results.results.map(r => r.chunk.project_path))].slice(0, 3).join(", ")}`}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Related Keywords */}
+          <div className="mb-4">
+            <p className="text-xs text-muted-foreground mb-2">관련 키워드</p>
+            <div className="flex flex-wrap gap-1.5">
+              {relatedKeywords.map((kw) => (
+                <Badge
+                  key={kw}
+                  variant="outline"
+                  className="cursor-pointer hover:bg-primary/10 transition-colors text-xs"
+                  onClick={() => handleKeywordClick(kw)}
+                >
+                  {kw}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Result Count */}
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               &apos;<span className="font-semibold text-foreground">{results.query}</span>&apos; 검색 결과{" "}
               <span className="font-medium text-foreground">{results.total}</span>건 · {results.took_ms}ms
             </p>
+            <p className="text-xs text-muted-foreground">{page} / {totalPages} 페이지</p>
           </div>
 
           {results.results.length === 0 && (
@@ -159,10 +211,33 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
           )}
 
           <div className="space-y-2">
-            {results.results.map((r) => (
+            {paginatedResults.map((r) => (
               <ResultCard key={r.chunk.chunk_id} result={r} query={query} onOpen={openDetail} onCopy={copyPath} onViewDoc={() => navigate(`/doc/${encodeURIComponent(r.chunk.file_path)}`)} />
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

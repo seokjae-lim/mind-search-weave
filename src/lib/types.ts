@@ -83,3 +83,56 @@ export interface SearchFilters {
   types?: FileType[];
   sort?: "relevance" | "recent";
 }
+
+// ─── Advanced Search Types ───
+export type SearchOperator = "AND" | "OR" | "NOT";
+export type SearchField = "all" | "title" | "project" | "tag" | "content";
+
+export interface AdvancedSearchRow {
+  id: string;
+  field: SearchField;
+  operator: SearchOperator;
+  keyword: string;
+}
+
+// ─── AI Chat Types ───
+export interface AIChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  references?: AIChatReference[];
+}
+
+export interface AIChatReference {
+  chunk_id: string;
+  doc_title: string;
+  file_path: string;
+  snippet: string;
+}
+
+// ─── Knowledge Graph Types ───
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: "document" | "keyword" | "project" | "tag";
+  val?: number;
+  color?: string;
+}
+
+export interface GraphLink {
+  source: string;
+  target: string;
+  label?: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+// ─── Word Cloud Types ───
+export interface WordCloudItem {
+  text: string;
+  value: number;
+}

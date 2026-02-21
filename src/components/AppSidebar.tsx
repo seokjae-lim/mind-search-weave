@@ -1,4 +1,4 @@
-import { Search, FolderOpen, BarChart3 } from "lucide-react";
+import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, SlidersHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -13,11 +13,48 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 
-const navItems = [
+const mainItems = [
   { title: "검색", url: "/", icon: Search },
+  { title: "상세 검색", url: "/advanced-search", icon: SlidersHorizontal },
   { title: "탐색", url: "/browse", icon: FolderOpen },
   { title: "현황", url: "/dashboard", icon: BarChart3 },
 ];
+
+const aiItems = [
+  { title: "AI 에이전트", url: "/ai-agent", icon: Bot },
+];
+
+const vizItems = [
+  { title: "워드 클라우드", url: "/visualization/wordcloud", icon: Cloud },
+  { title: "지식 그래프", url: "/visualization/knowledge-graph", icon: Network },
+];
+
+function MenuGroup({ label, items }: { label: string; items: typeof mainItems }) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to={item.url}
+                  end
+                  className="flex items-center gap-2"
+                  activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.title}</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -40,28 +77,9 @@ export function AppSidebar() {
         </button>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>메뉴</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className="flex items-center gap-2"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <MenuGroup label="메뉴" items={mainItems} />
+        <MenuGroup label="AI" items={aiItems} />
+        <MenuGroup label="시각화" items={vizItems} />
       </SidebarContent>
     </Sidebar>
   );

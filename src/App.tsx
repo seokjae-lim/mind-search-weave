@@ -5,10 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { AIChatFAB } from "@/components/AIChatPanel";
 import Index from "./pages/Index";
 import Browse from "./pages/Browse";
 import Dashboard from "./pages/Dashboard";
 import DocumentDetail from "./pages/DocumentDetail";
+import AdvancedSearch from "./pages/AdvancedSearch";
+import AIAgent from "./pages/AIAgent";
+import WordCloud from "./pages/WordCloud";
+import KnowledgeGraph from "./pages/KnowledgeGraph";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,11 +37,16 @@ const App = () => (
                   <Route path="/browse" element={<Browse />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/doc/:filePath" element={<DocumentDetail />} />
+                  <Route path="/advanced-search" element={<AdvancedSearch />} />
+                  <Route path="/ai-agent" element={<AIAgent />} />
+                  <Route path="/visualization/wordcloud" element={<WordCloud />} />
+                  <Route path="/visualization/knowledge-graph" element={<KnowledgeGraph />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
             </div>
           </div>
+          <AIChatFAB />
         </SidebarProvider>
       </BrowserRouter>
     </TooltipProvider>
