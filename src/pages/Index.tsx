@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { Copy, ExternalLink, Clock, FileText } from "lucide-react";
+import { Copy, ExternalLink, Clock, FileText, HardDrive } from "lucide-react";
 import { searchChunks, getChunkById } from "@/lib/api";
 import type { SearchResponse, SearchResult, ChunkRecord, FileType, SearchFilters } from "@/lib/types";
 import { FileTypeIcon, FileTypeBadge } from "@/components/FileTypeIcon";
@@ -283,6 +283,14 @@ function ResultCard({ result, onOpen, onCopy, onViewDoc }: { result: SearchResul
             onClick={(e) => { e.stopPropagation(); onViewDoc(); }}
           >
             <ExternalLink className="mr-1 h-3 w-3" /> 문서 보기
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`, "_blank"); }}
+          >
+            <HardDrive className="mr-1 h-3 w-3" /> Drive에서 열기
           </Button>
         </div>
       </CardContent>
