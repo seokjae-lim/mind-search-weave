@@ -567,7 +567,19 @@ export default function HistoryPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
                               const { data: secs } = await supabase.from("proposal_sections").select("*").eq("project_id", project.id).order("sort_order", { ascending: true });
-                              exportProposalToExcel(project, (secs as any) || []);
+                              const { data: delivs } = await supabase.from("deliverables").select("*").in("section_id", (secs || []).map((s: any) => s.id));
+                              const delivMap: Record<string, any[]> = {};
+                              if (delivs) {
+                                for (const d of delivs) {
+                                  const sid = d.section_id;
+                                  if (sid) {
+                                    if (!delivMap[sid]) delivMap[sid] = [];
+                                    delivMap[sid].push({ deliverable_type: d.deliverable_type, title: d.title, content: d.content, status: d.status || "completed" });
+                                  }
+                                }
+                              }
+                              const exportSecs = (secs || []).map((s: any) => ({ ...s, deliverables: delivMap[s.id] || [] }));
+                              exportProposalToExcel(project, exportSecs);
                             }}>
                               <FileText className="h-4 w-4 mr-2" /> Excel 내보내기
                             </DropdownMenuItem>
