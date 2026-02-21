@@ -136,8 +136,9 @@ export function useProposalPipeline() {
     );
 
     try {
-      const { data, error } = await supabase.functions.invoke("research-requirement", {
+      const { data, error } = await supabase.functions.invoke("proposal-ai", {
         body: {
+          mode: "research",
           requirementTitle: section.requirement_title,
           requirementDescription: section.requirement_description,
           category: section.category,
@@ -204,15 +205,15 @@ export function useProposalPipeline() {
     );
 
     try {
-      const { data, error } = await supabase.functions.invoke("draft-proposal", {
+      const { data, error } = await supabase.functions.invoke("proposal-ai", {
         body: {
+          mode: "section",
           requirementTitle: section.requirement_title,
           requirementDescription: section.requirement_description,
           category: section.category,
           researchData: section.research_data,
           userNotes: section.user_notes,
           model,
-          mode: "section",
         },
       });
 
@@ -282,8 +283,8 @@ export function useProposalPipeline() {
           draft: s.draft_content,
         }));
 
-      const { data, error } = await supabase.functions.invoke("draft-proposal", {
-        body: { model, mode: "merge", allSections },
+      const { data, error } = await supabase.functions.invoke("proposal-ai", {
+        body: { mode: "merge", model, allSections },
       });
 
       if (error) throw new Error(error.message);
