@@ -740,7 +740,34 @@ export function useProposalPipeline() {
         .select("*")
         .eq("project_id", projectId)
         .order("sort_order", { ascending: true });
-      setSections((secs as unknown as ProposalRequirement[]) || []);
+
+      // Fetch deliverables for all sections
+      const sectionIds = (secs || []).map((s: any) => s.id);
+      let delivMap: Record<string, SectionDeliverable[]> = {};
+      if (sectionIds.length > 0) {
+        const { data: delivs } = await supabase
+          .from("deliverables")
+          .select("section_id, deliverable_type, title, content, status")
+          .in("section_id", sectionIds);
+        if (delivs) {
+          for (const d of delivs) {
+            const sid = (d as any).section_id as string;
+            if (!delivMap[sid]) delivMap[sid] = [];
+            delivMap[sid].push({
+              deliverable_type: d.deliverable_type,
+              title: d.title,
+              content: d.content as Record<string, unknown>,
+              status: (d.status as SectionDeliverable["status"]) || "completed",
+            });
+          }
+        }
+      }
+
+      const sectionsWithDeliverables = (secs || []).map((s: any) => ({
+        ...s,
+        deliverables: delivMap[s.id] || [],
+      }));
+      setSections(sectionsWithDeliverables as unknown as ProposalRequirement[]);
       return true;
     } catch {
       toast.error("프로젝트 로딩 중 오류가 발생했습니다.");
