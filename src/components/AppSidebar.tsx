@@ -1,5 +1,5 @@
-import { Search, FolderOpen, BarChart3, Bot, Cloud, Network } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, Home } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -12,11 +12,21 @@ import {
   SidebarMenuButton,
   SidebarHeader,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronRight } from "lucide-react";
 
 const mainItems = [
   { title: "검색", url: "/", icon: Search },
-  { title: "탐색", url: "/browse", icon: FolderOpen },
   { title: "현황", url: "/dashboard", icon: BarChart3 },
+];
+
+const browseChildren = [
+  { title: "폴더 탐색", url: "/browse", icon: FolderOpen },
+  { title: "지식 그래프", url: "/visualization/knowledge-graph", icon: Network },
 ];
 
 const aiItems = [
@@ -25,10 +35,9 @@ const aiItems = [
 
 const vizItems = [
   { title: "워드 클라우드", url: "/visualization/wordcloud", icon: Cloud },
-  { title: "지식 그래프", url: "/visualization/knowledge-graph", icon: Network },
 ];
 
-function MenuGroup({ label, items }: { label: string; items: typeof mainItems }) {
+function MenuGroup({ label, items }: { label: string; items: { title: string; url: string; icon: React.ElementType }[] }) {
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -49,6 +58,50 @@ function MenuGroup({ label, items }: { label: string; items: typeof mainItems })
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
+function BrowseGroup() {
+  const location = useLocation();
+  const isBrowseActive = browseChildren.some((c) => location.pathname === c.url);
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <Collapsible defaultOpen={isBrowseActive} className="group/collapsible">
+            <SidebarMenuItem>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton className="flex items-center gap-2 w-full">
+                  <FolderOpen className="h-4 w-4" />
+                  <span className="flex-1 text-left">탐색</span>
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarMenu className="pl-4 mt-1">
+                  {browseChildren.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          end
+                          className="flex items-center gap-2"
+                          activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -76,7 +129,29 @@ export function AppSidebar() {
         </button>
       </SidebarHeader>
       <SidebarContent>
+        {/* Home button */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/"
+                    end
+                    className="flex items-center gap-2"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <Home className="h-4 w-4" />
+                    <span>홈</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <MenuGroup label="메뉴" items={mainItems} />
+        <BrowseGroup />
         <MenuGroup label="AI" items={aiItems} />
         <MenuGroup label="시각화" items={vizItems} />
       </SidebarContent>
