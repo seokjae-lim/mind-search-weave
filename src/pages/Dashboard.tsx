@@ -15,13 +15,44 @@ const CAT_COLORS: Record<string, string> = {
 
 export default function DashboardPage() {
   const [data, setData] = useState<WikiStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    wikiStats().then(setData).catch(() => setData(null));
-  }, []);
+  const loadData = () => {
+    setLoading(true);
+    setError(false);
+    wikiStats()
+      .then((d) => { setData(d); setError(false); })
+      .catch(() => { setData(null); setError(true); })
+      .finally(() => setLoading(false));
+  };
 
-  if (!data) return <div className="flex h-full items-center justify-center text-muted-foreground">로딩 중...</div>;
+  useEffect(() => { loadData(); }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground gap-2">
+        <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        데이터를 불러오는 중...
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4">
+        <div className="flex flex-col items-center gap-2">
+          <BarChart3 className="h-10 w-10 opacity-40" />
+          <p className="text-sm font-medium">데이터를 불러올 수 없습니다</p>
+          <p className="text-xs">백엔드 서버에 연결할 수 없거나 응답이 없습니다.</p>
+        </div>
+        <button onClick={loadData} className="text-sm text-primary hover:underline">
+          다시 시도
+        </button>
+      </div>
+    );
+  }
 
   const totalByType = data.by_type.reduce((s, t) => s + t.count, 0) || 1;
   const totalByCat = data.by_category.reduce((s, c) => s + c.count, 0) || 1;
