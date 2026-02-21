@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
+    --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -14,36 +14,54 @@
     --popover-foreground: 222 47% 11%;
 
     --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 92%;
+    --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 14% 95%;
+    --muted: 220 14% 96%;
     --muted-foreground: 220 9% 46%;
 
-    --accent: 221 83% 95%;
+    --accent: 221 83% 96%;
     --accent-foreground: 221 83% 40%;
 
     --highlight: 48 96% 76%;
     --highlight-foreground: 28 60% 20%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 88%;
-    --input: 220 13% 88%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
     --ring: 221 83% 53%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 213 31% 91%;
-    --sidebar-primary: 221 83% 60%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 222 47% 16%;
-    --sidebar-accent-foreground: 213 31% 91%;
-    --sidebar-border: 222 47% 18%;
+    /* Wiki-style hero gradient */
+    --hero-from: 221 83% 53%;
+    --hero-to: 262 67% 55%;
+
+    /* Stat card accent colors */
+    --stat-blue: 221 83% 53%;
+    --stat-green: 142 76% 36%;
+    --stat-orange: 25 95% 53%;
+    --stat-purple: 262 67% 55%;
+
+    /* Category colors */
+    --cat-data: 142 76% 36%;
+    --cat-ai: 262 67% 55%;
+    --cat-infra: 221 83% 53%;
+    --cat-governance: 25 95% 53%;
+    --cat-management: 340 75% 55%;
+    --cat-strategy: 199 89% 48%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 221 83% 96%;
+    --sidebar-accent-foreground: 221 83% 40%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 221 83% 53%;
 
     --highlight: 48 96% 53%;
@@ -109,3 +127,27 @@ mark {
   padding: 0 2px;
   border-radius: 2px;
 }
+
+/* Wiki-style file type badge colors */
+.badge-pptx { @apply bg-orange-100 text-orange-700 border-orange-200; }
+.badge-pdf { @apply bg-red-100 text-red-700 border-red-200; }
+.badge-xlsx { @apply bg-green-100 text-green-700 border-green-200; }
+.badge-csv { @apply bg-emerald-100 text-emerald-700 border-emerald-200; }
+.badge-ipynb { @apply bg-purple-100 text-purple-700 border-purple-200; }
+.badge-hwp { @apply bg-blue-100 text-blue-700 border-blue-200; }
+.badge-docx { @apply bg-blue-100 text-blue-700 border-blue-200; }
+
+/* Category badge colors */
+.cat-badge-데이터 { @apply bg-green-100 text-green-700; }
+.cat-badge-AI { @apply bg-purple-100 text-purple-700; }
+.cat-badge-인프라 { @apply bg-blue-100 text-blue-700; }
+.cat-badge-거버넌스 { @apply bg-orange-100 text-orange-700; }
+.cat-badge-사업관리 { @apply bg-pink-100 text-pink-700; }
+.cat-badge-전략 { @apply bg-cyan-100 text-cyan-700; }
+
+/* Project color accents */
+.project-stripe-1 { @apply border-t-4 border-t-blue-500; }
+.project-stripe-2 { @apply border-t-4 border-t-green-500; }
+.project-stripe-3 { @apply border-t-4 border-t-orange-500; }
+.project-stripe-4 { @apply border-t-4 border-t-red-500; }
+.project-stripe-5 { @apply border-t-4 border-t-purple-500; }

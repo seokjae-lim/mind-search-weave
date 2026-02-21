@@ -1,37 +1,19 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, ArrowLeft, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Copy, ExternalLink, Clock, FileText, HardDrive, Star, Eye, ChevronLeft, ChevronRight, FolderOpen, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { search as wikiSearch, doc as wikiDoc, parseTags } from "@/lib/wikiApi";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { search as wikiSearch, doc as wikiDoc, parseTags, projects as apiProjects, categories as apiCategories } from "@/lib/wikiApi";
 import type { WikiSearchResponse, WikiChunk, WikiDocDetail } from "@/lib/wikiApi";
-import { FileTypeIcon, FileTypeBadge } from "@/components/FileTypeIcon";
+import { FileTypeBadge, CategoryBadge } from "@/components/FileTypeIcon";
 import { useToast } from "@/hooks/use-toast";
 
 const FILE_TYPES = ["pptx", "pdf", "xlsx", "csv", "ipynb"];
-const PAGE_SIZE = 5;
-
-const RELATED_KEYWORDS: Record<string, string[]> = {
-  "데이터": ["품질관리", "메타데이터", "표준화", "API", "교통"],
-  "AI": ["MLOps", "Kubeflow", "GPT-4o", "전처리", "모델"],
-  "클라우드": ["K8s", "마이크로서비스", "API Gateway", "제로트러스트"],
-  "default": ["데이터", "AI", "클라우드", "IoT", "스마트시티"],
-};
-
-function getRelatedKeywords(query: string): string[] {
-  const q = query.toLowerCase();
-  for (const [key, kws] of Object.entries(RELATED_KEYWORDS)) {
-    if (key !== "default" && q.includes(key.toLowerCase())) return kws;
-  }
-  return RELATED_KEYWORDS.default;
-}
 
 interface SearchResultsProps {
   initialResults: WikiSearchResponse;
@@ -48,12 +30,21 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   const [selectedChunk, setSelectedChunk] = useState<WikiDocDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [projectList, setProjectList] = useState<{ project_path: string }[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>("전체 사업");
+  const [catList, setCatList] = useState<{ category: string; count: number }[]>([]);
+  const [selectedCat, setSelectedCat] = useState<string>("전체");
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const PAGE_SIZE = 10;
   const totalPages = Math.max(1, Math.ceil(results.results.length / PAGE_SIZE));
   const paginatedResults = results.results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const relatedKeywords = getRelatedKeywords(query);
+
+  useEffect(() => {
+    apiProjects().then((r) => setProjectList(r.projects || [])).catch(() => {});
+    apiCategories().then((r) => setCatList((r.categories || []).map(c => ({ category: c.category, count: c.count })))).catch(() => {});
+  }, []);
 
   const doSearch = async (q?: string) => {
     const searchQuery = q ?? query;
@@ -64,23 +55,14 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
       const res = await wikiSearch({
         q: searchQuery,
         type: selectedTypes.length === 1 ? selectedTypes[0] : undefined,
+        project: selectedProject !== "전체 사업" ? selectedProject : undefined,
+        category: selectedCat !== "전체" ? selectedCat : undefined,
         sort: sortBy,
       });
       setResults(res);
-    } catch {
-      // handled by wikiApi toast
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") doSearch();
-  };
-
-  const handleKeywordClick = (kw: string) => {
-    setQuery(kw);
-    doSearch(kw);
   };
 
   const openDetail = async (chunkId: string) => {
@@ -88,9 +70,7 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
       const detail = await wikiDoc(chunkId);
       setSelectedChunk(detail);
       setDetailOpen(true);
-    } catch {
-      // handled
-    }
+    } catch {}
   };
 
   const copyPath = (path: string) => {
@@ -99,117 +79,146 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   };
 
   const toggleType = (t: string) => {
-    setSelectedTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+    if (selectedTypes.includes(t)) {
+      setSelectedTypes(selectedTypes.filter(x => x !== t));
+    } else {
+      setSelectedTypes([t]);
+    }
   };
 
   return (
-    <div className="flex h-full gap-0">
-      {/* Filter Panel */}
-      <aside className="hidden w-56 shrink-0 border-r bg-card p-4 lg:block">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">필터</h3>
-        <div className="mb-4">
-          <Label className="mb-2 block text-xs text-muted-foreground">파일 타입</Label>
-          <div className="space-y-2">
-            {FILE_TYPES.map((t) => (
-              <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox checked={selectedTypes.includes(t)} onCheckedChange={() => toggleType(t)} />
-                <FileTypeIcon type={t as any} className="h-3.5 w-3.5" />
-                <span>{t.toUpperCase()}</span>
-              </label>
-            ))}
+    <div className="flex h-full">
+      {/* Left Filter Sidebar */}
+      <aside className="hidden lg:block w-60 shrink-0 border-r bg-card overflow-auto">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-5">
+            <div>
+              <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">▼ 필터</h4>
+            </div>
+
+            {/* File Type Filter */}
+            <div>
+              <h4 className="text-xs font-semibold mb-2">파일 유형</h4>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${selectedTypes.length === 0 ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-muted"}`}
+                  onClick={() => setSelectedTypes([])}
+                >전체</button>
+                {FILE_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${selectedTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-muted"}`}
+                    onClick={() => toggleType(t)}
+                  >
+                    {t === "pptx" ? "🅿 PPT" : t === "pdf" ? "📄 PDF" : t === "xlsx" ? "📊 Excel" : t === "csv" ? "📊 CSV" : "💻 NB"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Project Filter */}
+            <div>
+              <h4 className="text-xs font-semibold mb-2">프로젝트</h4>
+              <div className="space-y-1">
+                <button
+                  className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${selectedProject === "전체 사업" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                  onClick={() => { setSelectedProject("전체 사업"); }}
+                >전체 사업</button>
+                {projectList.map((p) => (
+                  <button
+                    key={p.project_path}
+                    className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors flex items-center gap-1 ${selectedProject === p.project_path ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    onClick={() => setSelectedProject(p.project_path)}
+                  >
+                    <FolderOpen className="h-3 w-3 shrink-0" /> {p.project_path}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div>
+              <h4 className="text-xs font-semibold mb-2">주제분류</h4>
+              <div className="space-y-1">
+                <button
+                  className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${selectedCat === "전체" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                  onClick={() => setSelectedCat("전체")}
+                >전체</button>
+                {catList.map((c) => (
+                  <button
+                    key={c.category}
+                    className={`w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between transition-colors ${selectedCat === c.category ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    onClick={() => setSelectedCat(c.category)}
+                  >
+                    <span>{c.category}</span>
+                    <span className="text-[10px]">({c.count})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sort */}
+            <div>
+              <h4 className="text-xs font-semibold mb-2">정렬</h4>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relevance">관련도순</SelectItem>
+                  <SelectItem value="mtime">최근 수정순</SelectItem>
+                  <SelectItem value="views">인기순</SelectItem>
+                  <SelectItem value="importance">중요도순</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => doSearch()}>
+              필터 적용
+            </Button>
           </div>
-        </div>
-        <div className="mb-4">
-          <Label className="mb-2 block text-xs text-muted-foreground">정렬</Label>
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="relevance">관련도순</SelectItem>
-              <SelectItem value="mtime">최근수정순</SelectItem>
-              <SelectItem value="views">조회수순</SelectItem>
-              <SelectItem value="importance">중요도순</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {selectedTypes.length > 0 && (
-          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setSelectedTypes([])}>
-            필터 초기화
-          </Button>
-        )}
+        </ScrollArea>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur p-3">
-          <div className="mx-auto flex max-w-3xl items-center gap-2">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={onBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+        {/* Search Bar */}
+        <div className="sticky top-0 z-10 border-b bg-background px-4 py-3">
+          <div className="max-w-4xl flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKeyDown} placeholder="결과 내 재검색" className="pl-9 h-10" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} placeholder="검색어 입력" className="pl-9 h-10" />
             </div>
-            <Button onClick={() => doSearch()} disabled={loading} size="sm">
+            <Button onClick={() => doSearch()} disabled={loading} className="h-10 px-5">
               {loading ? "검색 중..." : "검색"}
             </Button>
           </div>
         </div>
 
-        <div className="mx-auto max-w-3xl p-4">
-          {/* AI Summary Snippet */}
-          <Card className="mb-4 border-primary/20 bg-primary/5">
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-primary mb-1">AI 요약</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  '<span className="font-semibold text-foreground">{results.query}</span>' 관련하여 총 {results.total}건의 문서가 발견되었습니다.
-                  {results.total > 0 && ` 주요 프로젝트: ${[...new Set(results.results.map(r => r.project_path))].slice(0, 3).join(", ")}`}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Related Keywords */}
-          <div className="mb-4">
-            <p className="text-xs text-muted-foreground mb-2">관련 키워드</p>
-            <div className="flex flex-wrap gap-1.5">
-              {relatedKeywords.map((kw) => (
-                <Badge key={kw} variant="outline" className="cursor-pointer hover:bg-primary/10 transition-colors text-xs" onClick={() => handleKeywordClick(kw)}>
-                  {kw}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
+        <div className="max-w-4xl px-4 py-4">
           {/* Result Count */}
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              &apos;<span className="font-semibold text-foreground">{results.query}</span>&apos; 검색 결과{" "}
-              <span className="font-medium text-foreground">{results.total}</span>건
+          <div className="mb-4">
+            <p className="text-sm">
+              &quot;<span className="font-bold text-foreground">{results.query}</span>&quot; 검색결과{" "}
+              <span className="font-bold text-primary">{results.total}건</span>
+              {selectedTypes.length === 1 && <Badge variant="outline" className="ml-2 text-xs">{selectedTypes[0].toUpperCase()}</Badge>}
             </p>
-            <p className="text-xs text-muted-foreground">{page} / {totalPages} 페이지</p>
           </div>
 
           {results.results.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
-              <p>검색 결과가 없습니다.</p>
-              <p className="text-xs mt-1">다른 키워드로 시도해보세요.</p>
+            <div className="py-16 text-center text-muted-foreground">
+              <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm">검색 결과가 없습니다.</p>
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-4">
             {paginatedResults.map((chunk) => (
-              <ResultCard key={chunk.chunk_id} chunk={chunk} query={query} onOpen={openDetail} onCopy={copyPath} onViewDoc={() => navigate(`/doc/${encodeURIComponent(chunk.chunk_id)}`)} />
+              <WikiResultCard key={chunk.chunk_id} chunk={chunk} onOpen={openDetail} onCopy={copyPath} onViewDoc={() => navigate(`/doc/${encodeURIComponent(chunk.chunk_id)}`)} />
             ))}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="flex items-center justify-center gap-2 mt-8">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -226,51 +235,51 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
         </div>
       </div>
 
-      {/* Detail Sheet */}
+      {/* Detail Sheet (right panel) */}
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-auto">
+        <SheetContent className="w-full sm:max-w-md overflow-auto">
           {selectedChunk && (
             <>
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <FileTypeIcon type={selectedChunk.file_type as any} />
-                  {selectedChunk.doc_title}
-                </SheetTitle>
+                <SheetTitle className="text-base">📄 문서 상세</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-4">
+                <h3 className="text-lg font-bold">{selectedChunk.doc_title}</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  <FileTypeBadge type={selectedChunk.file_type as any} />
+                  <Badge variant="outline" className="text-xs">{selectedChunk.location_detail}</Badge>
+                  {selectedChunk.category && <CategoryBadge category={selectedChunk.category} />}
+                  {selectedChunk.doc_stage && <Badge variant="secondary" className="text-xs">{selectedChunk.doc_stage}</Badge>}
+                </div>
+
+                {selectedChunk.summary && (
+                  <div className="rounded-lg border bg-green-50 p-3">
+                    <p className="text-xs font-medium text-green-700 mb-1">🧠 요약</p>
+                    <p className="text-sm text-green-800">{selectedChunk.summary}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">경로</span><p className="font-medium truncate">{selectedChunk.file_path}</p></div>
+                  <div><span className="text-muted-foreground">프로젝트</span><p className="font-medium">{selectedChunk.project_path}</p></div>
+                  <div><span className="text-muted-foreground">작성기관</span><p className="font-medium">{selectedChunk.org || "—"}</p></div>
+                  <div><span className="text-muted-foreground">사업연도</span><p className="font-medium">{selectedChunk.doc_year || "—"}</p></div>
+                  <div><span className="text-muted-foreground">수정일</span><p className="font-medium">{new Date(selectedChunk.mtime).toLocaleDateString("ko-KR")}</p></div>
+                  <div><span className="text-muted-foreground">중요도</span><p className="font-medium">{selectedChunk.importance}/100</p></div>
+                </div>
+
+                {/* Importance Bar */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">경로</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-muted rounded px-2 py-1 break-all">{selectedChunk.file_path}</code>
-                    <Button size="icon" variant="ghost" onClick={() => copyPath(selectedChunk.file_path)}>
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
+                  <p className="text-xs text-muted-foreground mb-1">중요도</p>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${selectedChunk.importance}%` }} />
                   </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Badge>{selectedChunk.file_type.toUpperCase()}</Badge>
-                  <Badge variant="outline">{selectedChunk.location_detail}</Badge>
-                  {selectedChunk.category && <Badge variant="secondary">{selectedChunk.category}</Badge>}
-                  <Button
-                    size="sm" variant="outline" className="h-7 text-xs ml-auto"
-                    onClick={() => {
-                      const fn = selectedChunk.file_path.split("/").pop() || selectedChunk.doc_title;
-                      window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fn)}`, "_blank");
-                    }}
-                  >
-                    <HardDrive className="mr-1 h-3 w-3" /> Drive에서 열기
-                  </Button>
-                </div>
-                <Separator />
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">전체 텍스트</p>
-                  <div className="rounded-md border bg-muted/50 p-3 text-sm leading-relaxed whitespace-pre-wrap">
-                    {selectedChunk.text || selectedChunk.snippet}
-                  </div>
-                </div>
+
+                {/* Tags */}
                 {parseTags(selectedChunk.tags).length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">태그</p>
+                    <p className="text-xs text-muted-foreground mb-1">🏷 태그</p>
                     <div className="flex flex-wrap gap-1">
                       {parseTags(selectedChunk.tags).map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
@@ -278,15 +287,53 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
                     </div>
                   </div>
                 )}
-                {selectedChunk.summary && (
+
+                <Separator />
+
+                {/* Full Text */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">📝 전체 텍스트</p>
+                  <div className="rounded border bg-muted/30 p-3 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-auto">
+                    {selectedChunk.text || selectedChunk.snippet}
+                  </div>
+                </div>
+
+                {/* Related docs */}
+                {selectedChunk.related && selectedChunk.related.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">요약</p>
-                    <p className="text-sm text-muted-foreground">{selectedChunk.summary}</p>
+                    <p className="text-xs text-muted-foreground mb-1">📎 같은 파일의 다른 위치</p>
+                    <div className="space-y-1">
+                      {selectedChunk.related.slice(0, 5).map((r) => (
+                        <div key={r.chunk_id} className="text-xs p-1.5 rounded bg-muted/50 cursor-pointer hover:bg-muted" onClick={() => navigate(`/doc/${encodeURIComponent(r.chunk_id)}`)}>{r.location_detail} — {r.snippet?.slice(0, 60)}...</div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {new Date(selectedChunk.mtime).toLocaleString("ko-KR")}
+
+                {/* Similar docs */}
+                {selectedChunk.similar && selectedChunk.similar.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">🔍 유사 주제 문서</p>
+                    <div className="space-y-1">
+                      {selectedChunk.similar.slice(0, 5).map((s) => (
+                        <div key={s.chunk_id} className="text-xs p-1.5 rounded bg-muted/50 cursor-pointer hover:bg-muted" onClick={() => navigate(`/doc/${encodeURIComponent(s.chunk_id)}`)}>
+                          {s.doc_title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => copyPath(selectedChunk.file_path)}>
+                    <Copy className="h-3 w-3 mr-1" /> 경로 복사
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const fn = selectedChunk.file_path.split("/").pop() || selectedChunk.doc_title;
+                    window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fn)}`, "_blank");
+                  }}>
+                    <HardDrive className="h-3 w-3 mr-1" /> Drive에서 열기
+                  </Button>
                 </div>
               </div>
             </>
@@ -297,39 +344,56 @@ export function SearchResults({ initialResults, initialQuery, onBack }: SearchRe
   );
 }
 
-function ResultCard({ chunk, query, onOpen, onCopy, onViewDoc }: { chunk: WikiChunk; query: string; onOpen: (id: string) => void; onCopy: (p: string) => void; onViewDoc: () => void }) {
-  const fileName = chunk.file_path.split("/").pop() || "";
-  const displayText = chunk.snippet || chunk.text?.substring(0, 200) || "";
+/* ── Wiki-style Result Card ── */
+function WikiResultCard({ chunk, onOpen, onCopy, onViewDoc }: { chunk: WikiChunk; onOpen: (id: string) => void; onCopy: (p: string) => void; onViewDoc: () => void }) {
+  const displayText = chunk.snippet || chunk.text?.substring(0, 300) || "";
+  const tags = parseTags(chunk.tags);
 
   return (
-    <Card className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/30" onClick={() => onOpen(chunk.chunk_id)}>
-      <CardContent className="p-4">
-        <div className="mb-2 flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0">
-              <FileTypeIcon type={chunk.file_type as any} className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-sm truncate text-foreground">{chunk.doc_title || fileName}</p>
-              <p className="text-xs text-muted-foreground truncate">{chunk.project_path}</p>
-            </div>
+    <div className="group border-b pb-4 cursor-pointer" onClick={() => onOpen(chunk.chunk_id)}>
+      {/* Header Row: icon + title */}
+      <div className="flex items-start gap-2 mb-1.5">
+        <div className="mt-0.5 text-primary">
+          {chunk.file_type === "pptx" ? "📊" : chunk.file_type === "pdf" ? "📄" : chunk.file_type === "xlsx" || chunk.file_type === "csv" ? "📈" : chunk.file_type === "ipynb" ? "💻" : "📁"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">{chunk.doc_title}</h3>
+          {/* Meta Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            <FileTypeBadge type={chunk.file_type as any} />
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">{chunk.location_detail}</Badge>
+            {chunk.category && <CategoryBadge category={chunk.category} />}
+            {chunk.doc_stage && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">{chunk.doc_stage}</Badge>}
+            {chunk.org && <span className="text-[10px] text-muted-foreground">🏛 {chunk.org}</span>}
           </div>
-          <Badge variant="outline" className="text-[10px] shrink-0">{chunk.location_detail}</Badge>
+          {/* File Path */}
+          <p className="text-xs text-muted-foreground mt-1 truncate">{chunk.project_path}/{chunk.file_path.split("/").pop()}</p>
         </div>
-        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mt-1" dangerouslySetInnerHTML={{ __html: displayText }} />
-        <div className="mt-3 flex items-center gap-1 border-t pt-2">
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); onCopy(chunk.file_path); }}>
-            <Copy className="mr-1 h-3 w-3" /> 경로 복사
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); onViewDoc(); }}>
-            <ExternalLink className="mr-1 h-3 w-3" /> 문서 보기
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`, "_blank"); }}>
-            <HardDrive className="mr-1 h-3 w-3" /> Drive
-          </Button>
-          {chunk.category && <Badge variant="secondary" className="text-[10px] ml-auto">{chunk.category}</Badge>}
+        <Button size="icon" variant="ghost" className="shrink-0 h-7 w-7 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); onCopy(chunk.file_path); }}>
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Snippet */}
+      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 ml-7" dangerouslySetInnerHTML={{ __html: displayText }} />
+
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2 ml-7">
+          {tags.slice(0, 6).map((tag) => (
+            <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0">{tag}</Badge>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      {/* Footer Stats */}
+      <div className="flex items-center gap-3 mt-2 ml-7 text-[11px] text-muted-foreground">
+        {chunk.similarity != null && <span className="text-green-600 font-medium">⚡ {Math.round(chunk.similarity * 100)}%</span>}
+        <span className="flex items-center gap-0.5"><Star className="h-3 w-3" /> {chunk.importance}</span>
+        <span className="flex items-center gap-0.5"><Eye className="h-3 w-3" /> {chunk.view_count}</span>
+        <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" /> {new Date(chunk.mtime).toLocaleDateString("ko-KR")}</span>
+        <span className="ml-auto text-muted-foreground">{chunk.project_path}</span>
+      </div>
+    </div>
   );
 }
