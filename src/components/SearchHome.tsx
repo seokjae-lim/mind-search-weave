@@ -21,20 +21,22 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
   const [liveStats, setLiveStats] = useState<WikiStatsResponse | null>(null);
   const [popularDocs, setPopularDocs] = useState<WikiChunk[]>([]);
   const [cats, setCats] = useState<{ category: string; count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    wikiStats().then((s) => {
-      setLiveStats(s);
-    }).catch(() => {});
+  const loadData = () => {
+    setLoading(true);
+    setError(false);
+    Promise.all([
+      wikiStats().then((s) => setLiveStats(s)),
+      wikiTrending().then((t) => setPopularDocs(t.popular?.slice(0, 6) || [])),
+      wikiCategories().then((c) => setCats((c.categories || []).map(x => ({ category: x.category, count: x.count })).slice(0, 6))),
+    ])
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  };
 
-    wikiTrending().then((t) => {
-      setPopularDocs(t.popular?.slice(0, 6) || []);
-    }).catch(() => {});
-
-    wikiCategories().then((c) => {
-      setCats((c.categories || []).map(x => ({ category: x.category, count: x.count })).slice(0, 6));
-    }).catch(() => {});
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -48,6 +50,30 @@ export function SearchHome({ onSearch }: SearchHomeProps) {
   const topTags = liveStats?.by_category?.slice(0, 6) || [];
   const projects = liveStats?.by_project || [];
   const stripeColors = ["project-stripe-1", "project-stripe-2", "project-stripe-3", "project-stripe-4", "project-stripe-5"];
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground gap-2 py-20">
+        <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        데이터를 불러오는 중...
+      </div>
+    );
+  }
+
+  if (error && !liveStats) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4 py-20">
+        <div className="flex flex-col items-center gap-2">
+          <Search className="h-10 w-10 opacity-40" />
+          <p className="text-sm font-medium">데이터를 불러올 수 없습니다</p>
+          <p className="text-xs">백엔드 서버에 연결할 수 없거나 응답이 없습니다.</p>
+        </div>
+        <button onClick={loadData} className="text-sm text-primary hover:underline">
+          다시 시도
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
