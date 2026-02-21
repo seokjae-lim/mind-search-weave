@@ -274,7 +274,38 @@ function buildMergePrompt(allSections: unknown) {
   return { systemPrompt, userMessage };
 }
 
+function buildSynthesizePrompt(body: Record<string, unknown>) {
+  const systemPrompt = `당신은 30년 경력의 IT 컨설턴트이자 공공부문 ISP/ISMP 전문가입니다.
+여러 AI 모델이 동일한 요구사항에 대해 각각 수행한 딥리서치 결과를 취합하여,
+가장 정확하고 포괄적인 최종 연구 결과를 작성합니다.
+
+각 모델의 결과를 비교 분석하여:
+1. 공통적으로 언급된 핵심 내용은 강화
+2. 특정 모델만 언급한 고유한 인사이트는 보완 추가
+3. 상충되는 내용은 가장 신뢰할 수 있는 정보를 채택
+4. 전체적으로 가장 완성도 높은 종합 결과를 도출
+
+요청된 단계에 맞는 JSON 형식으로 응답하세요. 형식은 해당 단계의 원래 출력 스키마와 동일합니다.
+
+중요: "~를 수행한다" 형태의 공문서 체를 사용할 것.`;
+
+  const { stepKey, stepTitle, modelResults } = body;
+  const userMessage = `다음은 여러 AI 모델이 "${stepTitle}" 단계에 대해 각각 수행한 연구 결과입니다.
+이를 취합하여 최선의 종합 결과를 작성해주세요.
+
+**분석 단계**: ${stepKey} - ${stepTitle}
+
+${(modelResults as Array<{ model: string; data: unknown }>).map((r: { model: string; data: unknown }, i: number) =>
+  `--- 모델 ${i + 1}: ${r.model} ---\n${JSON.stringify(r.data, null, 2)}`
+).join("\n\n")}
+
+위 결과들을 종합하여 가장 완성도 높은 단일 연구 결과를 작성하세요.`;
+
+  return { systemPrompt, userMessage };
+}
+
 // ── AI call helpers ──
+
 
 async function callLovableAI(model: string, systemPrompt: string, userMessage: string, maxTokens: number): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -387,7 +418,7 @@ serve(async (req) => {
     const body = await req.json();
     const { mode, model = "google/gemini-3-flash-preview" } = body;
 
-    if (!["research", "deep-research", "section", "merge"].includes(mode)) {
+    if (!["research", "deep-research", "section", "merge", "synthesize"].includes(mode)) {
       return new Response(
         JSON.stringify({ error: "올바른 mode를 지정하세요: research | deep-research | section | merge" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -403,7 +434,7 @@ serve(async (req) => {
       );
     }
 
-    if (mode !== "merge") {
+    if (mode !== "merge" && mode !== "synthesize") {
       const { requirementTitle } = body;
       if (typeof requirementTitle !== "string" || requirementTitle.length < 1 || requirementTitle.length > 500) {
         return new Response(
@@ -438,6 +469,9 @@ serve(async (req) => {
     } else if (mode === "section") {
       ({ systemPrompt, userMessage } = buildDraftSectionPrompt(body));
       maxTokens = 6000;
+    } else if (mode === "synthesize") {
+      ({ systemPrompt, userMessage } = buildSynthesizePrompt(body));
+      maxTokens = 8000;
     } else {
       ({ systemPrompt, userMessage } = buildMergePrompt(body.allSections));
       maxTokens = 12000;

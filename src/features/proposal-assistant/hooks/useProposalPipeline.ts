@@ -251,7 +251,6 @@ export function useProposalPipeline() {
     const allStepResults: Record<string, unknown> = {};
 
     for (const rs of RESEARCH_STEPS) {
-      // Build previous results for context
       const prevForStep = rs.step <= 2
         ? (allStepResults[RESEARCH_STEPS[0].key] || undefined)
         : allStepResults;
@@ -261,7 +260,6 @@ export function useProposalPipeline() {
 
       allStepResults[rs.key] = result;
 
-      // Save intermediate to DB
       const currentSection = sections.find(s => s.id === section.id) || section;
       const deep = getDeepResearch(currentSection.research_data) || initDeepResearch();
       deep.steps[rs.key] = { status: "completed", data: result };
@@ -276,12 +274,154 @@ export function useProposalPipeline() {
         })
         .eq("id", section.id);
 
-      // Rate limit delay
       if (rs.step < 5) await new Promise(r => setTimeout(r, 1000));
     }
 
     return true;
   }, [sections, deepResearchStep]);
+
+  // ── Multi-model Deep Research ──
+
+  const multiModelDeepResearch = useCallback(async (
+    section: ProposalRequirement,
+    rfpContent: string,
+    models: string[],
+    synthesizeModel: string
+  ): Promise<boolean> => {
+    if (models.length <= 1) {
+      return deepResearchRequirement(section, rfpContent, models[0] || synthesizeModel);
+    }
+
+    // Run each step across all models, then synthesize
+    for (const rs of RESEARCH_STEPS) {
+      // 1. Run this step on all models in parallel-ish (sequential to respect rate limits)
+      const modelResults: { model: string; data: Record<string, unknown> }[] = [];
+
+      // Show step as running
+      setSections(prev =>
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const deep = getDeepResearch(s.research_data) || initDeepResearch();
+          deep.steps[rs.key] = { status: "running", data: null };
+          deep.current_step = rs.step;
+          return { ...s, research_data: deep as unknown as Record<string, unknown>, research_status: "running" as const };
+        })
+      );
+
+      for (const model of models) {
+        try {
+          // Get previous results for context
+          const currentSection = sections.find(s => s.id === section.id) || section;
+          const existingDeep = getDeepResearch(currentSection.research_data) || initDeepResearch();
+          const allPrev: Record<string, unknown> = {};
+          for (const prevStep of RESEARCH_STEPS) {
+            if (prevStep.step >= rs.step) break;
+            if (existingDeep.steps[prevStep.key]?.data) {
+              allPrev[prevStep.key] = existingDeep.steps[prevStep.key].data;
+            }
+          }
+          const prevForStep = rs.step <= 2 ? (allPrev[RESEARCH_STEPS[0].key] || undefined) : (Object.keys(allPrev).length > 0 ? allPrev : undefined);
+
+          const { data, error } = await supabase.functions.invoke("proposal-ai", {
+            body: {
+              mode: "deep-research",
+              researchStep: rs.step,
+              requirementTitle: section.requirement_title,
+              requirementDescription: section.requirement_description,
+              category: section.category,
+              rfpContext: rfpContent.substring(0, 5000),
+              userNotes: section.user_notes,
+              previousResults: prevForStep,
+              model,
+            },
+          });
+
+          if (!error && data?.data) {
+            modelResults.push({ model, data: data.data });
+          }
+        } catch {
+          // Skip failed models
+        }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      if (modelResults.length === 0) {
+        toast.error(`"${section.requirement_title}" Step ${rs.step}: 모든 모델이 실패했습니다.`);
+        setSections(prev =>
+          prev.map(s => {
+            if (s.id !== section.id) return s;
+            const deep = getDeepResearch(s.research_data) || initDeepResearch();
+            deep.steps[rs.key] = { status: "error", data: null };
+            return { ...s, research_data: deep as unknown as Record<string, unknown>, research_status: "error" as const };
+          })
+        );
+        return false;
+      }
+
+      // 2. Synthesize results if multiple models succeeded
+      let finalData: Record<string, unknown>;
+      if (modelResults.length === 1) {
+        finalData = modelResults[0].data;
+      } else {
+        try {
+          const { data: synthResult, error: synthError } = await supabase.functions.invoke("proposal-ai", {
+            body: {
+              mode: "synthesize",
+              stepKey: rs.key,
+              stepTitle: rs.label,
+              modelResults,
+              model: synthesizeModel,
+            },
+          });
+          if (synthError || !synthResult?.data) throw new Error("종합 실패");
+          finalData = synthResult.data;
+          // Attach source model info
+          finalData._synthesized_from = modelResults.map(r => r.model);
+        } catch {
+          // Fallback: use first model's results
+          finalData = modelResults[0].data;
+          toast.warning(`Step ${rs.step} 종합 실패, 첫 번째 모델 결과를 사용합니다.`);
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // 3. Save to state & DB
+      setSections(prev =>
+        prev.map(s => {
+          if (s.id !== section.id) return s;
+          const deep = getDeepResearch(s.research_data) || initDeepResearch();
+          deep.steps[rs.key] = { status: "completed", data: finalData };
+          deep.current_step = rs.step;
+          const allDone = RESEARCH_STEPS.every(r2 => deep.steps[r2.key]?.status === "completed");
+          deep.completed = allDone;
+          return {
+            ...s,
+            research_data: deep as unknown as Record<string, unknown>,
+            research_status: allDone ? "completed" as const : "running" as const,
+          };
+        })
+      );
+
+      const currentSection2 = sections.find(s => s.id === section.id) || section;
+      const deep2 = getDeepResearch(currentSection2.research_data) || initDeepResearch();
+      deep2.steps[rs.key] = { status: "completed", data: finalData };
+      deep2.current_step = rs.step;
+      deep2.completed = rs.step === 5;
+
+      await supabase
+        .from("proposal_sections")
+        .update({
+          research_data: JSON.parse(JSON.stringify(deep2)),
+          research_status: rs.step === 5 ? "completed" : "running",
+        })
+        .eq("id", section.id);
+
+      if (rs.step < 5) await new Promise(r => setTimeout(r, 1000));
+    }
+
+    toast.success(`"${section.requirement_title}" 멀티모델 딥리서치 완료`);
+    return true;
+  }, [sections, deepResearchStep, deepResearchRequirement]);
 
   const researchAll = useCallback(async (rfpContent: string, model: string) => {
     setStageLoading(true);
@@ -604,6 +744,7 @@ export function useProposalPipeline() {
     extractRequirements,
     researchRequirement,
     deepResearchRequirement,
+    multiModelDeepResearch,
     deepResearchStep,
     researchAll,
     draftSection,

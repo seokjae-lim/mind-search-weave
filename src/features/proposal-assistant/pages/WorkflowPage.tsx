@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import ModelSelector from "../components/ModelSelector";
+import ModelSelector, { availableModels } from "../components/ModelSelector";
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -44,6 +45,9 @@ import {
   Copy,
   Check,
   Download,
+  Import,
+  Layers,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -74,11 +78,16 @@ function getDeepResearch(data: Record<string, unknown> | null): DeepResearchData
 const WorkflowPageInner = () => {
   const [rfpInput, setRfpInput] = useState("");
   const [selectedModel, setSelectedModel] = useState("google/gemini-3-flash-preview");
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [multiModelEnabled, setMultiModelEnabled] = useState(false);
   const [executionMode, setExecutionMode] = useState<"auto" | "plan">("plan");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState("");
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [savedAnalyses, setSavedAnalyses] = useState<Array<{ id: string; title: string; rfp_content: string; created_at: string }>>([]);
+  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const location = useLocation();
 
   const { user, signUp, signIn } = useAuth();
@@ -93,6 +102,7 @@ const WorkflowPageInner = () => {
     loadProject,
     extractRequirements,
     deepResearchRequirement,
+    multiModelDeepResearch,
     researchAll,
     draftSection,
     draftAll,
@@ -112,6 +122,40 @@ const WorkflowPageInner = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, project, loadProject]);
+
+  // Load saved analyses for import
+  const loadSavedAnalyses = useCallback(async () => {
+    if (!user) return;
+    setLoadingAnalyses(true);
+    try {
+      const { data, error } = await supabase
+        .from("analysis_results")
+        .select("id, title, rfp_content, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      setSavedAnalyses(data || []);
+    } catch {
+      toast.error("분석 결과 목록 불러오기 실패");
+    } finally {
+      setLoadingAnalyses(false);
+    }
+  }, [user]);
+
+  const handleImportAnalysis = (rfpContent: string) => {
+    setRfpInput(rfpContent);
+    setShowImportDialog(false);
+    toast.success("RFP 분석 내용이 불러와졌습니다.");
+  };
+
+  const toggleMultiModel = (modelId: string) => {
+    setSelectedModels(prev =>
+      prev.includes(modelId)
+        ? prev.filter(m => m !== modelId)
+        : [...prev, modelId]
+    );
+  };
 
   const handleStart = async () => {
     if (!user) {
@@ -187,8 +231,25 @@ const WorkflowPageInner = () => {
       {!project && (
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="text-lg">1. RFP 입력 및 실행 모드 설정</CardTitle>
-            <CardDescription>분석된 RFP가 있으면 자동으로 불러옵니다.</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">1. RFP 입력 및 실행 모드 설정</CardTitle>
+                <CardDescription>분석된 RFP가 있으면 자동으로 불러옵니다.</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (!user) { setAuthModalOpen(true); return; }
+                  loadSavedAnalyses();
+                  setShowImportDialog(true);
+                }}
+              >
+                <Import className="w-4 h-4" />
+                분석 불러오기
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
@@ -200,6 +261,7 @@ const WorkflowPageInner = () => {
 
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-[250px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">기본 모델 (초안/통합용)</label>
                 <ModelSelector selectedModel={selectedModel} onModelChange={setSelectedModel} />
               </div>
 
@@ -223,6 +285,52 @@ const WorkflowPageInner = () => {
                   단계별 승인
                 </Button>
               </div>
+            </div>
+
+            {/* Multi-model research toggle */}
+            <div className="border rounded-lg p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">멀티모델 딥리서치</span>
+                </div>
+                <Button
+                  variant={multiModelEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setMultiModelEnabled(!multiModelEnabled)}
+                  className="gap-1.5"
+                >
+                  {multiModelEnabled ? <Check className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
+                  {multiModelEnabled ? "활성화됨" : "비활성화"}
+                </Button>
+              </div>
+              {multiModelEnabled && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    여러 모델로 동시에 조사한 후 결과를 취합하여 최적의 연구 결과를 생성합니다.
+                    조사할 모델을 선택하세요 (2개 이상):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableModels.filter(m => m.isLovable).map(m => (
+                      <Button
+                        key={m.id}
+                        variant={selectedModels.includes(m.id) ? "default" : "outline"}
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={() => toggleMultiModel(m.id)}
+                      >
+                        {selectedModels.includes(m.id) && <CheckSquare className="w-3 h-3" />}
+                        {m.name}
+                      </Button>
+                    ))}
+                  </div>
+                  {selectedModels.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      ✅ {selectedModels.length}개 모델 선택됨 · 종합 모델: {availableModels.find(m => m.id === selectedModel)?.name || selectedModel}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground">
@@ -374,7 +482,13 @@ const WorkflowPageInner = () => {
                     section={section}
                     expanded={expandedSection === section.id}
                     onToggle={() => setExpandedSection(expandedSection === section.id ? null : section.id)}
-                    onResearch={() => deepResearchRequirement(section, project!.rfp_content, project!.model)}
+                    onResearch={() => {
+                      if (multiModelEnabled && selectedModels.length >= 2) {
+                        multiModelDeepResearch(section, project!.rfp_content, selectedModels, project!.model);
+                      } else {
+                        deepResearchRequirement(section, project!.rfp_content, project!.model);
+                      }
+                    }}
                     onDraft={() => draftSection(section, project!.model)}
                     editingNotes={editingNotes === section.id}
                     notesValue={notesValue}
@@ -433,6 +547,57 @@ const WorkflowPageInner = () => {
             )}
           </Tabs>
         </>
+      )}
+
+      {/* Import Analysis Dialog */}
+      {showImportDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowImportDialog(false)}>
+          <Card className="w-full max-w-lg mx-4 max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Import className="w-5 h-5 text-primary" />
+                  RFP 분석 결과 불러오기
+                </CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => setShowImportDialog(false)}>
+                  <ChevronUp className="w-4 h-4" />
+                </Button>
+              </div>
+              <CardDescription>저장된 RFP 분석의 원문을 워크플로우에 불러옵니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden">
+              {loadingAnalyses ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : savedAnalyses.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">저장된 분석 결과가 없습니다.</p>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-2 pr-3">
+                    {savedAnalyses.map(a => (
+                      <div
+                        key={a.id}
+                        className="border rounded-lg p-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleImportAnalysis(a.rfp_content)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{a.title}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {new Date(a.created_at).toLocaleDateString("ko-KR")}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {a.rfp_content.substring(0, 150)}...
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <AuthModal
