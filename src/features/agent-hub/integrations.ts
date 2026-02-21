@@ -89,7 +89,7 @@ export const externalTools: QuickAction[] = [
     title: "Liner Scholar",
     description: "AI 기반 학술 논문 검색 및 요약 서비스입니다.",
     icon: BookOpen,
-    externalUrl: "https://scholar.liner.com/search?q=",
+    externalUrl: "https://scholar.liner.com/ko/search?q=",
     category: "external",
   },
   {
