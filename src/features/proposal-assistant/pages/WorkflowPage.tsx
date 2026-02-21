@@ -810,6 +810,11 @@ const DeepResearchStepView = ({
   data: Record<string, unknown> | null;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+
+  const modelResults = data?._model_results as { model: string; data: Record<string, unknown> }[] | undefined;
+  const synthesizedFrom = data?._synthesized_from as string[] | undefined;
+  const hasMultiModel = modelResults && modelResults.length > 1;
 
   return (
     <div className="border rounded-lg">
@@ -837,6 +842,12 @@ const DeepResearchStepView = ({
           </div>
           <Icon className="w-4 h-4 text-muted-foreground" />
           <span className="text-sm font-medium">{label}</span>
+          {hasMultiModel && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              <Layers className="w-3 h-3 mr-0.5" />
+              {modelResults.length}모델
+            </Badge>
+          )}
         </div>
         {data && (
           expanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />
@@ -844,11 +855,115 @@ const DeepResearchStepView = ({
       </button>
       {expanded && data && (
         <div className="px-3 pb-3 border-t">
-          <ScrollArea className="max-h-60 mt-2">
-            <ResearchStepContent stepNum={stepNum} data={data} />
-          </ScrollArea>
+          {hasMultiModel && (
+            <div className="flex items-center gap-2 mt-2 mb-2">
+              <Button
+                size="sm"
+                variant={!compareMode ? "default" : "outline"}
+                className="text-xs h-7 gap-1"
+                onClick={() => setCompareMode(false)}
+              >
+                <Merge className="w-3 h-3" />
+                종합 결과
+              </Button>
+              <Button
+                size="sm"
+                variant={compareMode ? "default" : "outline"}
+                className="text-xs h-7 gap-1"
+                onClick={() => setCompareMode(true)}
+              >
+                <GitCompare className="w-3 h-3" />
+                모델 비교
+              </Button>
+              {synthesizedFrom && (
+                <span className="text-[10px] text-muted-foreground ml-auto">
+                  종합: {synthesizedFrom.map(m => m.split("/").pop()).join(", ")}
+                </span>
+              )}
+            </div>
+          )}
+
+          {compareMode && hasMultiModel ? (
+            <ModelCompareView modelResults={modelResults} />
+          ) : (
+            <ScrollArea className="max-h-60 mt-2">
+              <ResearchStepContent stepNum={stepNum} data={data} />
+            </ScrollArea>
+          )}
         </div>
       )}
+    </div>
+  );
+};
+
+/* Model Comparison View */
+const ModelCompareView = ({
+  modelResults,
+}: {
+  modelResults: { model: string; data: Record<string, unknown> }[];
+}) => {
+  const [selectedModel, setSelectedModel] = useState(0);
+
+  return (
+    <div className="space-y-2 mt-2">
+      {/* Model tabs */}
+      <div className="flex gap-1 flex-wrap">
+        {modelResults.map((mr, idx) => (
+          <Button
+            key={idx}
+            size="sm"
+            variant={selectedModel === idx ? "default" : "outline"}
+            className="text-xs h-7 gap-1"
+            onClick={() => setSelectedModel(idx)}
+          >
+            <Cpu className="w-3 h-3" />
+            {mr.model.split("/").pop()}
+          </Button>
+        ))}
+      </div>
+
+      {/* Selected model content */}
+      <ScrollArea className="max-h-72 border rounded-lg p-3 bg-muted/20">
+        <div className="text-sm space-y-2">
+          {Object.entries(modelResults[selectedModel].data).map(([key, value]) => {
+            if (key === "step_title") return null;
+            const lbl = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            if (typeof value === "string") {
+              return (
+                <div key={key}>
+                  <strong className="text-xs text-muted-foreground">{lbl}:</strong>
+                  <p className="mt-0.5 whitespace-pre-wrap">{value}</p>
+                </div>
+              );
+            }
+            if (Array.isArray(value)) {
+              return (
+                <div key={key}>
+                  <strong className="text-xs text-muted-foreground">{lbl}:</strong>
+                  <ul className="mt-0.5 list-disc list-inside space-y-0.5">
+                    {value.map((item, i) => (
+                      <li key={i} className="text-sm">
+                        {typeof item === "string" ? item : JSON.stringify(item, null, 1)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            }
+            if (typeof value === "object" && value !== null) {
+              return (
+                <div key={key}>
+                  <strong className="text-xs text-muted-foreground">{lbl}:</strong>
+                  <pre className="mt-0.5 text-xs bg-muted/50 p-2 rounded whitespace-pre-wrap">
+                    {JSON.stringify(value, null, 2)}
+                  </pre>
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </ScrollArea>
     </div>
   );
 };
