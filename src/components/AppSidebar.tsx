@@ -1,4 +1,4 @@
-import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, SlidersHorizontal } from "lucide-react";
+import { Search, FolderOpen, BarChart3, Bot, Cloud, Network } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -15,7 +15,6 @@ import {
 
 const mainItems = [
   { title: "검색", url: "/", icon: Search },
-  { title: "상세 검색", url: "/advanced-search", icon: SlidersHorizontal },
   { title: "탐색", url: "/browse", icon: FolderOpen },
   { title: "현황", url: "/dashboard", icon: BarChart3 },
 ];
