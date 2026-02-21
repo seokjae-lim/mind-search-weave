@@ -57,19 +57,38 @@ function deduplicateFiles(chunks: WikiChunk[]): BrowseFile[] {
 export default function BrowsePage() {
   const [tree, setTree] = useState<FolderNode | null>(null);
   const [files, setFiles] = useState<BrowseFile[]>([]);
+  const [allFiles, setAllFiles] = useState<BrowseFile[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>("");
   const [scopedSearch, setScopedSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "mindmap" | "knowledge-graph">("tree");
   const [treeExpandAll, setTreeExpandAll] = useState<boolean | null>(null);
+  const [allFilesLoaded, setAllFilesLoaded] = useState(false);
   const navigate = useNavigate();
 
+  // Load projects tree
   useEffect(() => {
     apiProjects().then((res) => {
       const t = buildTreeFromProjects(res.projects);
       setTree(t);
     }).catch(() => {});
   }, []);
+
+  // When mindmap tab is selected, fetch files for all projects so the map has data
+  useEffect(() => {
+    if (viewMode === "mindmap" && !allFilesLoaded && tree) {
+      const fetchAll = async () => {
+        try {
+          const res = await apiBrowse({ limit: 200, sort: "views" });
+          setAllFiles(deduplicateFiles(res.results));
+          setAllFilesLoaded(true);
+        } catch {
+          setAllFiles([]);
+        }
+      };
+      fetchAll();
+    }
+  }, [viewMode, allFilesLoaded, tree]);
 
   const selectFolder = async (path: string) => {
     setSelectedPath(path);
@@ -179,7 +198,7 @@ export default function BrowsePage() {
         </div>
       ) : viewMode === "mindmap" ? (
         <div className="flex-1 overflow-hidden bg-[hsl(222,47%,6%)] rounded-b-xl">
-          {tree && <MindMap tree={tree} files={files} />}
+          {tree && <MindMap tree={tree} files={allFiles.length > 0 ? allFiles : files} />}
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
