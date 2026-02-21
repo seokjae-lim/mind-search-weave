@@ -80,14 +80,20 @@ async function createPdfWithKoreanFont(): Promise<jsPDF> {
   return doc;
 }
 
-// ── PDF text helpers ──
+// ── PDF shared helpers ──
+
+const PAGE_MARGIN = 20;
+const MAX_W = 170;
+const PAGE_H = 297;
+const CONTENT_BOTTOM = 280;
+const FOOTER_Y = 290;
 
 function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number {
   const lines = doc.splitTextToSize(text, maxWidth);
   for (const line of lines) {
-    if (y > 280) {
+    if (y > CONTENT_BOTTOM) {
       doc.addPage();
-      y = 20;
+      y = PAGE_MARGIN;
     }
     doc.text(line, x, y);
     y += lineHeight;
@@ -95,91 +101,294 @@ function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth
   return y;
 }
 
-// ── PDF Export ──
+function addCoverPage(doc: jsPDF, title: string, subtitle: string, date: string) {
+  // Background accent bar
+  doc.setFillColor(41, 98, 255); // primary blue
+  doc.rect(0, 0, 210, 12, "F");
+
+  // Title area
+  doc.setFontSize(28);
+  doc.setTextColor(30, 30, 30);
+  const titleLines = doc.splitTextToSize(title, 160);
+  let ty = 100;
+  for (const line of titleLines) {
+    doc.text(line, 105, ty, { align: "center" });
+    ty += 14;
+  }
+
+  // Subtitle
+  doc.setFontSize(14);
+  doc.setTextColor(100);
+  doc.text(subtitle, 105, ty + 10, { align: "center" });
+
+  // Date
+  doc.setFontSize(11);
+  doc.text(date, 105, ty + 24, { align: "center" });
+
+  // Bottom accent bar
+  doc.setFillColor(41, 98, 255);
+  doc.rect(0, PAGE_H - 12, 210, 12, "F");
+
+  // Footer text
+  doc.setFontSize(8);
+  doc.setTextColor(255);
+  doc.text("AI Proposal Assistant", 105, PAGE_H - 5, { align: "center" });
+  doc.setTextColor(0);
+}
+
+interface TocEntry {
+  title: string;
+  page: number;
+}
+
+function addTocPage(doc: jsPDF, entries: TocEntry[]) {
+  doc.addPage();
+
+  // Header
+  doc.setFillColor(41, 98, 255);
+  doc.rect(PAGE_MARGIN, 18, 170, 1, "F");
+
+  doc.setFontSize(18);
+  doc.setTextColor(30, 30, 30);
+  doc.text("목 차", PAGE_MARGIN, 15);
+
+  let y = 30;
+  doc.setFontSize(10);
+
+  entries.forEach((entry, idx) => {
+    if (y > CONTENT_BOTTOM) {
+      doc.addPage();
+      y = PAGE_MARGIN;
+    }
+    const num = `${idx + 1}.`;
+    const pageStr = `${entry.page}`;
+
+    doc.setTextColor(50);
+    doc.text(num, PAGE_MARGIN, y);
+    doc.text(entry.title, PAGE_MARGIN + 10, y);
+
+    // Dotted line
+    const titleW = doc.getTextWidth(entry.title) + PAGE_MARGIN + 10;
+    const pageW = doc.getTextWidth(pageStr);
+    const dotsStart = Math.min(titleW + 3, 190 - pageW - 3);
+    const dotsEnd = 190 - pageW - 3;
+    if (dotsEnd > dotsStart) {
+      doc.setTextColor(180);
+      let dx = dotsStart;
+      while (dx < dotsEnd) {
+        doc.text(".", dx, y);
+        dx += 2;
+      }
+    }
+
+    doc.setTextColor(50);
+    doc.text(pageStr, 190, y, { align: "right" });
+    y += 7;
+  });
+}
+
+function addPageNumbers(doc: jsPDF, startPage = 2) {
+  const totalPages = doc.getNumberOfPages();
+  for (let i = startPage; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`${i - startPage + 1} / ${totalPages - startPage + 1}`, 105, FOOTER_Y, { align: "center" });
+  }
+  doc.setTextColor(0);
+}
+
+function addSectionHeader(doc: jsPDF, title: string, y: number): number {
+  if (y > 250) {
+    doc.addPage();
+    y = PAGE_MARGIN;
+  }
+  doc.setFillColor(41, 98, 255);
+  doc.rect(PAGE_MARGIN, y - 4, 170, 0.8, "F");
+  doc.setFontSize(13);
+  doc.setTextColor(30, 30, 30);
+  y = addWrappedText(doc, title, PAGE_MARGIN, y + 2, MAX_W, 7);
+  y += 4;
+  return y;
+}
+
+// ── Analysis PDF Export ──
 
 export async function exportAnalysisToPdf(analysis: SavedAnalysis) {
   const doc = await createPdfWithKoreanFont();
-  const maxW = 170;
-  let y = 20;
+  const dateStr = new Date(analysis.created_at).toLocaleString("ko-KR");
 
-  // Title
-  doc.setFontSize(16);
-  y = addWrappedText(doc, analysis.title, 20, y, maxW, 8);
-  y += 4;
+  // 1. Cover page
+  addCoverPage(doc, analysis.title, "RFP 분석 보고서", dateStr);
 
+  // Build TOC entries (we'll fill page numbers after rendering)
+  const tocEntries: TocEntry[] = [
+    { title: "RFP 원문", page: 0 },
+    ...([1, 2, 3, 4, 5, 6] as const).map(n => ({
+      title: `Step ${n}: ${STEP_LABELS[n]}`,
+      page: 0,
+    })),
+  ];
+
+  // 2. TOC placeholder page (page 2) — we'll overwrite after content
+  addTocPage(doc, tocEntries);
+  const tocPageNumber = 2;
+
+  // 3. Content pages
+  // RFP section
+  doc.addPage();
+  tocEntries[0].page = doc.getNumberOfPages();
+  let y = PAGE_MARGIN;
+  y = addSectionHeader(doc, "RFP 원문", y);
   doc.setFontSize(9);
-  doc.setTextColor(120);
-  y = addWrappedText(doc, `생성일: ${new Date(analysis.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
-  doc.setTextColor(0);
-  y += 6;
-
-  // RFP Content
-  doc.setFontSize(12);
-  y = addWrappedText(doc, "RFP 원문", 20, y, maxW, 6);
-  y += 2;
-  doc.setFontSize(8);
-  const rfpPreview = analysis.rfp_content.slice(0, 2000) + (analysis.rfp_content.length > 2000 ? "..." : "");
-  y = addWrappedText(doc, rfpPreview, 20, y, maxW, 4);
-  y += 8;
+  const rfpPreview = analysis.rfp_content.slice(0, 4000) + (analysis.rfp_content.length > 4000 ? "\n..." : "");
+  y = addWrappedText(doc, rfpPreview, PAGE_MARGIN, y, MAX_W, 4.5);
 
   // Steps
   for (let step = 1; step <= 6; step++) {
+    doc.addPage();
+    tocEntries[step].page = doc.getNumberOfPages();
+    y = PAGE_MARGIN;
+    y = addSectionHeader(doc, `Step ${step}: ${STEP_LABELS[step]}`, y);
+
     const data = analysis[`step${step}_data` as keyof SavedAnalysis];
-    doc.setFontSize(12);
-    y = addWrappedText(doc, `Step ${step}: ${STEP_LABELS[step]}`, 20, y, maxW, 6);
-    y += 2;
-    doc.setFontSize(8);
-    const content = jsonToText(data).slice(0, 3000);
-    y = addWrappedText(doc, content, 20, y, maxW, 4);
-    y += 8;
+    doc.setFontSize(9);
+    const content = jsonToText(data).slice(0, 5000);
+    y = addWrappedText(doc, content, PAGE_MARGIN, y, MAX_W, 4.5);
   }
+
+  // 4. Rewrite TOC with correct page numbers
+  doc.setPage(tocPageNumber);
+  // Clear the page content by overlaying white rect, then redraw
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, 210, PAGE_H, "F");
+  // Redraw TOC header
+  doc.setFillColor(41, 98, 255);
+  doc.rect(PAGE_MARGIN, 18, 170, 1, "F");
+  doc.setFontSize(18);
+  doc.setTextColor(30, 30, 30);
+  doc.text("목 차", PAGE_MARGIN, 15);
+
+  let tocY = 30;
+  doc.setFontSize(10);
+  tocEntries.forEach((entry, idx) => {
+    const num = `${idx + 1}.`;
+    const adjustedPage = entry.page - tocPageNumber; // relative to content start
+    const pageStr = `${adjustedPage}`;
+
+    doc.setTextColor(50);
+    doc.text(num, PAGE_MARGIN, tocY);
+    doc.text(entry.title, PAGE_MARGIN + 10, tocY);
+    const pageW = doc.getTextWidth(pageStr);
+    doc.text(pageStr, 190, tocY, { align: "right" });
+    tocY += 7;
+  });
+
+  // 5. Page numbers (skip cover)
+  addPageNumbers(doc, 2);
 
   doc.save(`${analysis.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_분석결과.pdf`);
 }
+
+// ── Proposal PDF Export ──
 
 export async function exportProposalToPdf(
   project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
   sections: { requirement_number: string; requirement_title: string; requirement_description: string | null; research_data: Record<string, unknown> | null; draft_content: Record<string, unknown> | null }[]
 ) {
   const doc = await createPdfWithKoreanFont();
-  const maxW = 170;
-  let y = 20;
+  const dateStr = new Date(project.created_at).toLocaleString("ko-KR");
 
-  doc.setFontSize(16);
-  y = addWrappedText(doc, project.title, 20, y, maxW, 8);
-  y += 4;
+  // 1. Cover
+  addCoverPage(doc, project.title, `제안서 | 모델: ${project.model}`, dateStr);
 
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  y = addWrappedText(doc, `모델: ${project.model} | 단계: ${project.current_stage} | 생성일: ${new Date(project.created_at).toLocaleString("ko-KR")}`, 20, y, maxW, 5);
-  doc.setTextColor(0);
-  y += 8;
-
-  // Sections
-  for (const sec of sections) {
-    doc.setFontSize(11);
-    y = addWrappedText(doc, `[${sec.requirement_number}] ${sec.requirement_title}`, 20, y, maxW, 6);
-    y += 2;
-    doc.setFontSize(8);
-    if (sec.requirement_description) {
-      y = addWrappedText(doc, sec.requirement_description, 20, y, maxW, 4);
-      y += 2;
-    }
-    if (sec.draft_content) {
-      y = addWrappedText(doc, "--- 초안 ---", 20, y, maxW, 4);
-      y = addWrappedText(doc, jsonToText(sec.draft_content).slice(0, 3000), 20, y, maxW, 4);
-    }
-    y += 8;
-  }
-
-  // Merged doc
+  // Build TOC
+  const tocEntries: TocEntry[] = sections.map(s => ({
+    title: `[${s.requirement_number}] ${s.requirement_title}`,
+    page: 0,
+  }));
   if (project.merged_document) {
-    doc.setFontSize(12);
-    y = addWrappedText(doc, "통합 제안서", 20, y, maxW, 6);
-    y += 2;
-    doc.setFontSize(8);
-    y = addWrappedText(doc, jsonToText(project.merged_document).slice(0, 5000), 20, y, maxW, 4);
+    tocEntries.push({ title: "통합 제안서", page: 0 });
   }
+
+  // 2. TOC placeholder
+  addTocPage(doc, tocEntries);
+  const tocPageNumber = 2;
+
+  // 3. Sections
+  sections.forEach((sec, idx) => {
+    doc.addPage();
+    tocEntries[idx].page = doc.getNumberOfPages();
+    let y = PAGE_MARGIN;
+
+    y = addSectionHeader(doc, `[${sec.requirement_number}] ${sec.requirement_title}`, y);
+
+    doc.setFontSize(9);
+    if (sec.requirement_description) {
+      doc.setTextColor(80);
+      y = addWrappedText(doc, sec.requirement_description, PAGE_MARGIN, y, MAX_W, 4.5);
+      doc.setTextColor(0);
+      y += 4;
+    }
+
+    if (sec.draft_content) {
+      doc.setFontSize(10);
+      doc.setTextColor(41, 98, 255);
+      y = addWrappedText(doc, "제안서 초안", PAGE_MARGIN, y, MAX_W, 5);
+      doc.setTextColor(0);
+      doc.setFontSize(9);
+      y += 2;
+      y = addWrappedText(doc, jsonToText(sec.draft_content).slice(0, 5000), PAGE_MARGIN, y, MAX_W, 4.5);
+    }
+  });
+
+  // Merged document
+  if (project.merged_document) {
+    doc.addPage();
+    tocEntries[tocEntries.length - 1].page = doc.getNumberOfPages();
+    let y = PAGE_MARGIN;
+    y = addSectionHeader(doc, "통합 제안서", y);
+    doc.setFontSize(9);
+    y = addWrappedText(doc, jsonToText(project.merged_document).slice(0, 8000), PAGE_MARGIN, y, MAX_W, 4.5);
+  }
+
+  // 4. Rewrite TOC
+  doc.setPage(tocPageNumber);
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, 210, PAGE_H, "F");
+  doc.setFillColor(41, 98, 255);
+  doc.rect(PAGE_MARGIN, 18, 170, 1, "F");
+  doc.setFontSize(18);
+  doc.setTextColor(30, 30, 30);
+  doc.text("목 차", PAGE_MARGIN, 15);
+
+  let tocY = 30;
+  doc.setFontSize(10);
+  tocEntries.forEach((entry, idx) => {
+    const num = `${idx + 1}.`;
+    const adjustedPage = entry.page - tocPageNumber;
+    const pageStr = `${adjustedPage}`;
+    doc.setTextColor(50);
+    doc.text(num, PAGE_MARGIN, tocY);
+
+    // Truncate long titles for TOC
+    const maxTitleW = 140;
+    let titleText = entry.title;
+    while (doc.getTextWidth(titleText) > maxTitleW && titleText.length > 10) {
+      titleText = titleText.slice(0, -2) + "…";
+    }
+    doc.text(titleText, PAGE_MARGIN + 10, tocY);
+    doc.text(pageStr, 190, tocY, { align: "right" });
+    tocY += 7;
+
+    if (tocY > CONTENT_BOTTOM) {
+      // TOC overflow — unlikely but handled
+      tocY = 30;
+    }
+  });
+
+  // 5. Page numbers
+  addPageNumbers(doc, 2);
 
   doc.save(`${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.pdf`);
 }
