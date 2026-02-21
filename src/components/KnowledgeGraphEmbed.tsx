@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -247,6 +248,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   const fgRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
+  const isMobile = useIsMobile();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -476,12 +478,12 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
   return (
     <div className="relative flex flex-col h-full" onClick={() => { setContextMenu(null); }}>
       {/* Top bar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background/95 backdrop-blur z-10 shrink-0">
-        {showHeader && (
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 border-b bg-background/95 backdrop-blur z-10 shrink-0 flex-wrap">
+        {showHeader && !isMobile && (
           <h3 className="text-sm font-semibold mr-2">지식 그래프</h3>
         )}
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-28 h-7 text-xs">
+          <SelectTrigger className="w-20 sm:w-28 h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -494,7 +496,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
           </SelectContent>
         </Select>
 
-        <div className="relative flex-1 max-w-xs ml-2">
+        <div className="relative flex-1 min-w-0 max-w-xs ml-1 sm:ml-2">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
           <Input
             value={searchQuery}
@@ -533,19 +535,21 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="absolute top-14 left-3 z-10 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
-        {Object.entries(NODE_CONFIG).map(([key, cfg]) => (
-          <button
-            key={key}
-            className={`flex items-center gap-1.5 text-[10px] px-1.5 py-0.5 rounded hover:bg-muted transition-colors ${filterType === key ? "bg-muted font-medium" : ""}`}
-            onClick={() => setFilterType(filterType === key ? "all" : key)}
-          >
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.bg }} />
-            {cfg.label}
-          </button>
-        ))}
-      </div>
+      {/* Legend - hidden on mobile */}
+      {!isMobile && (
+        <div className="absolute top-14 left-3 z-10 flex flex-col gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-2 border shadow-sm">
+          {Object.entries(NODE_CONFIG).map(([key, cfg]) => (
+            <button
+              key={key}
+              className={`flex items-center gap-1.5 text-[10px] px-1.5 py-0.5 rounded hover:bg-muted transition-colors ${filterType === key ? "bg-muted font-medium" : ""}`}
+              onClick={() => setFilterType(filterType === key ? "all" : key)}
+            >
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.bg }} />
+              {cfg.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Graph */}
       <div ref={containerRef} className="flex-1 relative bg-[hsl(222,47%,6%)]">
@@ -567,7 +571,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
           enablePanInteraction
           backgroundColor="hsl(222, 47%, 6%)"
         />
-        <Minimap fgRef={fgRef} graphData={filteredData} />
+        {!isMobile && <Minimap fgRef={fgRef} graphData={filteredData} />}
       </div>
 
       {/* Tooltip */}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import type { FolderNode, BrowseFile } from "@/lib/types";
 import { doc as apiDoc } from "@/lib/wikiApi";
@@ -295,6 +296,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   const rootRef = useRef<MindMapNode | null>(null);
   const animRef = useRef<number>(0);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const isMobile = useIsMobile();
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -350,15 +352,17 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   useEffect(() => {
     const update = () => {
       if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
         setDimensions({
-          width: containerRef.current.clientWidth,
-          height: Math.max(500, containerRef.current.clientHeight),
+          width: w,
+          height: Math.max(w < 640 ? 400 : 500, containerRef.current.clientHeight),
         });
       }
     };
     update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    const ro = new ResizeObserver(update);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
   }, []);
 
   // ─── Search logic ───
@@ -891,7 +895,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
   return (
     <div className="relative w-full h-full" ref={containerRef}>
       {/* Search bar */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+      <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex items-center gap-1.5">
         <div className="relative flex items-center">
           <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -902,7 +906,7 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
               if (e.key === "Enter") goToResult(activeResultIndex + 1);
               if (e.key === "Escape") clearSearch();
             }}
-            className="h-8 w-48 pl-7 pr-7 text-xs bg-background/90 backdrop-blur-sm"
+            className="h-7 sm:h-8 w-32 sm:w-48 pl-7 pr-7 text-xs bg-background/90 backdrop-blur-sm"
           />
           {searchQuery && (
             <button onClick={clearSearch} className="absolute right-2 text-muted-foreground hover:text-foreground">
@@ -929,89 +933,99 @@ export function MindMap({ tree, files, onSelectFile }: MindMapProps) {
       </div>
 
       {/* Controls */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(3, z * 1.2))} title="확대">
-          <ZoomIn className="h-3.5 w-3.5" />
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 flex items-center gap-1 sm:gap-1.5">
+        <Button variant="outline" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => setZoom((z) => Math.min(3, z * 1.2))} title="확대">
+          <ZoomIn className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))} title="축소">
-          <ZoomOut className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))} title="축소">
+          <ZoomOut className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={fitView} title="맞춤">
-          <Maximize className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={fitView} title="맞춤">
+          <Maximize className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
-        <div className="w-px h-5 bg-border mx-1" />
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={expandAll}>
-          <Plus className="h-3 w-3 mr-1" /> 전체 펼치기
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={collapseAll}>
-          <Minus className="h-3 w-3 mr-1" /> 전체 접기
-        </Button>
+        {!isMobile && (
+          <>
+            <div className="w-px h-5 bg-border mx-1" />
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={expandAll}>
+              <Plus className="h-3 w-3 mr-1" /> 전체 펼치기
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={collapseAll}>
+              <Minus className="h-3 w-3 mr-1" /> 전체 접기
+            </Button>
+          </>
+        )}
       </div>
 
-      {/* Minimap */}
-      <div className="absolute bottom-3 right-3 z-10 rounded-lg overflow-hidden border border-border shadow-lg bg-background/90 backdrop-blur-sm">
-        <canvas
-          ref={minimapRef}
-          style={{ width: MINIMAP_W, height: MINIMAP_H, cursor: "crosshair" }}
-          onClick={(e) => {
-            // Click on minimap to navigate
-            const root = rootRef.current;
-            if (!root) return;
-            const rect = minimapRef.current?.getBoundingClientRect();
-            if (!rect) return;
+      {/* Minimap - hidden on mobile */}
+      {!isMobile && (
+        <div className="absolute bottom-3 right-3 z-10 rounded-lg overflow-hidden border border-border shadow-lg bg-background/90 backdrop-blur-sm">
+          <canvas
+            ref={minimapRef}
+            style={{ width: MINIMAP_W, height: MINIMAP_H, cursor: "crosshair" }}
+            onClick={(e) => {
+              // Click on minimap to navigate
+              const root = rootRef.current;
+              if (!root) return;
+              const rect = minimapRef.current?.getBoundingClientRect();
+              if (!rect) return;
 
-            const visible = collectVisible(root);
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            visible.forEach((n) => {
-              if (n.x < minX) minX = n.x;
-              if (n.y < minY) minY = n.y;
-              if (n.x > maxX) maxX = n.x;
-              if (n.y > maxY) maxY = n.y;
-            });
-            const pad = 60;
-            minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-            const worldW = Math.max(maxX - minX, 1);
-            const worldH = Math.max(maxY - minY, 1);
-            const scale = Math.min((MINIMAP_W - 10) / worldW, (MINIMAP_H - 10) / worldH);
-            const offX = (MINIMAP_W - worldW * scale) / 2;
-            const offY = (MINIMAP_H - worldH * scale) / 2;
+              const visible = collectVisible(root);
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              visible.forEach((n) => {
+                if (n.x < minX) minX = n.x;
+                if (n.y < minY) minY = n.y;
+                if (n.x > maxX) maxX = n.x;
+                if (n.y > maxY) maxY = n.y;
+              });
+              const pad = 60;
+              minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+              const worldW = Math.max(maxX - minX, 1);
+              const worldH = Math.max(maxY - minY, 1);
+              const scale = Math.min((MINIMAP_W - 10) / worldW, (MINIMAP_H - 10) / worldH);
+              const offX = (MINIMAP_W - worldW * scale) / 2;
+              const offY = (MINIMAP_H - worldH * scale) / 2;
 
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-            const worldClickX = (clickX - offX) / scale + minX;
-            const worldClickY = (clickY - offY) / scale + minY;
+              const clickX = e.clientX - rect.left;
+              const clickY = e.clientY - rect.top;
+              const worldClickX = (clickX - offX) / scale + minX;
+              const worldClickY = (clickY - offY) / scale + minY;
 
-            setPan({
-              x: dimensions.width / 2 - worldClickX * zoom,
-              y: dimensions.height / 2 - worldClickY * zoom,
-            });
-            forceUpdate((n) => n + 1);
-          }}
-        />
-      </div>
-
-      {/* Legend */}
-      <div className="absolute bottom-12 left-3 z-10 bg-background/85 backdrop-blur-sm rounded-lg border border-border px-3 py-2">
-        <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">파일 타입</p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {Object.entries(FILE_TYPE_COLORS).filter(([key]) => key !== "csv").map(([type, colors]) => (
-            <div key={type} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-sm border"
-                style={{ background: colors.bg, borderColor: colors.accent }}
-              />
-              <span className="text-[10px] text-muted-foreground">
-                {FILE_TYPE_ICON[type]} {FILE_TYPE_LABELS[type]}
-              </span>
-            </div>
-          ))}
+              setPan({
+                x: dimensions.width / 2 - worldClickX * zoom,
+                y: dimensions.height / 2 - worldClickY * zoom,
+              });
+              forceUpdate((n) => n + 1);
+            }}
+          />
         </div>
-      </div>
+      )}
 
-      {/* Hint */}
-      <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded px-2 py-1">
-        클릭: 펼치기/접기 · 파일 클릭: 문서 상세 · 노드 드래그: 이동 · 빈 곳 드래그: 패닝 · 스크롤: 확대/축소
-      </div>
+      {/* Legend - compact on mobile */}
+      {!isMobile && (
+        <div className="absolute bottom-12 left-3 z-10 bg-background/85 backdrop-blur-sm rounded-lg border border-border px-3 py-2">
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">파일 타입</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {Object.entries(FILE_TYPE_COLORS).filter(([key]) => key !== "csv").map(([type, colors]) => (
+              <div key={type} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-sm border"
+                  style={{ background: colors.bg, borderColor: colors.accent }}
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  {FILE_TYPE_ICON[type]} {FILE_TYPE_LABELS[type]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hint - hidden on mobile */}
+      {!isMobile && (
+        <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded px-2 py-1">
+          클릭: 펼치기/접기 · 파일 클릭: 문서 상세 · 노드 드래그: 이동 · 빈 곳 드래그: 패닝 · 스크롤: 확대/축소
+        </div>
+      )}
 
       <canvas
         ref={canvasRef}
