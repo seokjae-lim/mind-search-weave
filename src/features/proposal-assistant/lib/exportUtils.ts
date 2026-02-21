@@ -627,7 +627,7 @@ export function exportAnalysisToExcel(analysis: SavedAnalysis) {
 
 export function exportProposalToExcel(
   project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
-  sections: { requirement_number: string; requirement_title: string; requirement_description: string | null; priority: string; research_status: string; draft_status: string; research_data: Record<string, unknown> | null; draft_content: Record<string, unknown> | null }[]
+  sections: ExportSection[]
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -645,7 +645,7 @@ export function exportProposalToExcel(
   // Requirements summary
   const reqRows: (string | null)[][] = [["번호", "제목", "설명", "우선순위", "조사상태", "초안상태"]];
   for (const sec of sections) {
-    reqRows.push([sec.requirement_number, sec.requirement_title, sec.requirement_description, sec.priority, sec.research_status, sec.draft_status]);
+    reqRows.push([sec.requirement_number, sec.requirement_title, sec.requirement_description, (sec as any).priority ?? "", (sec as any).research_status ?? "", (sec as any).draft_status ?? ""]);
   }
   const wsReq = XLSX.utils.aoa_to_sheet(reqRows);
   wsReq["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 50 }, { wch: 10 }, { wch: 12 }, { wch: 12 }];
@@ -659,6 +659,31 @@ export function exportProposalToExcel(
   const wsDraft = XLSX.utils.aoa_to_sheet(draftRows);
   wsDraft["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 100 }];
   XLSX.utils.book_append_sheet(wb, wsDraft, "초안");
+
+  // Deliverables sheet
+  const allDeliverables: { req_num: string; req_title: string; type: string; title: string; content: string }[] = [];
+  for (const sec of sections) {
+    const delivs = (sec.deliverables || []).filter(d => d.status === "completed");
+    for (const d of delivs) {
+      const typeLabel = DELIVERABLE_TYPE_LABELS[d.deliverable_type] || d.deliverable_type;
+      allDeliverables.push({
+        req_num: sec.requirement_number,
+        req_title: sec.requirement_title,
+        type: typeLabel,
+        title: d.title,
+        content: jsonToText(d.content).slice(0, 5000),
+      });
+    }
+  }
+  if (allDeliverables.length > 0) {
+    const delivRows: string[][] = [["요구사항 번호", "요구사항 제목", "산출물 유형", "산출물 제목", "내용"]];
+    for (const d of allDeliverables) {
+      delivRows.push([d.req_num, d.req_title, d.type, d.title, d.content]);
+    }
+    const wsDeliv = XLSX.utils.aoa_to_sheet(delivRows);
+    wsDeliv["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 100 }];
+    XLSX.utils.book_append_sheet(wb, wsDeliv, "산출물");
+  }
 
   // Merged document
   if (project.merged_document) {

@@ -502,7 +502,17 @@ const WorkflowPageInner = () => {
                     size="sm"
                     variant="outline"
                     className="gap-1.5"
-                    onClick={() => exportProposalToExcel(project, sections)}
+                    onClick={() => {
+                      const exportSections: ExportSection[] = sections.map(sec => ({
+                        requirement_number: sec.requirement_number,
+                        requirement_title: sec.requirement_title,
+                        requirement_description: sec.requirement_description,
+                        research_data: sec.research_data,
+                        draft_content: sec.draft_content,
+                        deliverables: sec.deliverables?.filter(d => d.status === "completed") || [],
+                      }));
+                      exportProposalToExcel(project, exportSections);
+                    }}
                   >
                     <Download className="w-3.5 h-3.5" />
                     Excel
