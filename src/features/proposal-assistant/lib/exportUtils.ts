@@ -339,9 +339,32 @@ function renderResearchStepData(doc: jsPDF, data: Record<string, unknown>, start
 
 // ── Proposal PDF Export (with Deep Research) ──
 
+const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
+  definition: "요구사항 정의서",
+  proposal: "기술 제안서",
+  wbs: "WBS (작업분해구조)",
+  estimate: "견적서",
+};
+
+export interface ExportDeliverable {
+  deliverable_type: string;
+  title: string;
+  content: Record<string, unknown>;
+  status: string;
+}
+
+export interface ExportSection {
+  requirement_number: string;
+  requirement_title: string;
+  requirement_description: string | null;
+  research_data: Record<string, unknown> | null;
+  draft_content: Record<string, unknown> | null;
+  deliverables?: ExportDeliverable[];
+}
+
 export async function exportProposalToPdf(
   project: { title: string; model: string; current_stage: string; created_at: string; merged_document: Record<string, unknown> | null },
-  sections: { requirement_number: string; requirement_title: string; requirement_description: string | null; research_data: Record<string, unknown> | null; draft_content: Record<string, unknown> | null }[]
+  sections: ExportSection[]
 ) {
   const doc = await createPdfWithKoreanFont();
   const dateStr = new Date(project.created_at).toLocaleString("ko-KR");
@@ -364,6 +387,14 @@ export async function exportProposalToPdf(
     if (sec.draft_content) {
       tocEntries.push({
         title: `[${sec.requirement_number}] 제안서 초안 - ${sec.requirement_title}`,
+        page: 0,
+      });
+    }
+    // Deliverables
+    const completedDeliverables = (sec.deliverables || []).filter(d => d.status === "completed");
+    if (completedDeliverables.length > 0) {
+      tocEntries.push({
+        title: `[${sec.requirement_number}] 산출물 - ${sec.requirement_title}`,
         page: 0,
       });
     }
@@ -439,6 +470,40 @@ export async function exportProposalToPdf(
       const draftText = formatDraftContent(sec.draft_content);
       y = addWrappedText(doc, draftText, PAGE_MARGIN, y, MAX_W, 4.5);
     }
+
+    // Deliverables chapter
+    const completedDeliverables = (sec.deliverables || []).filter(d => d.status === "completed");
+    if (completedDeliverables.length > 0) {
+      doc.addPage();
+      tocEntries[tocIdx].page = doc.getNumberOfPages();
+      tocIdx++;
+
+      let y = PAGE_MARGIN;
+      y = addSectionHeader(doc, `[${sec.requirement_number}] 산출물: ${sec.requirement_title}`, y);
+
+      for (const deliv of completedDeliverables) {
+        if (y > 250) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+
+        // Deliverable type sub-header
+        const typeLabel = DELIVERABLE_TYPE_LABELS[deliv.deliverable_type] || deliv.deliverable_type;
+        doc.setFillColor(230, 245, 230);
+        doc.rect(PAGE_MARGIN, y - 3, MAX_W, 7, "F");
+        doc.setFontSize(10);
+        doc.setTextColor(34, 139, 34);
+        y = addWrappedText(doc, `▸ ${typeLabel}: ${deliv.title}`, PAGE_MARGIN + 2, y, MAX_W - 4, 5);
+        doc.setTextColor(0);
+        y += 3;
+
+        // Render deliverable content
+        doc.setFontSize(9);
+        const contentText = formatDeliverableContent(deliv.deliverable_type, deliv.content);
+        y = addWrappedText(doc, contentText, PAGE_MARGIN, y, MAX_W, 4.5);
+        y += 6;
+      }
+    }
   }
 
   // Merged document
@@ -488,6 +553,22 @@ export async function exportProposalToPdf(
   addPageNumbers(doc, 2);
 
   doc.save(`${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.pdf`);
+}
+
+// Helper to format deliverable content
+function formatDeliverableContent(type: string, data: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    if (typeof value === "string") {
+      parts.push(`[${label}]\n${value}`);
+    } else if (Array.isArray(value)) {
+      parts.push(`[${label}]\n${value.map(v => `• ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n")}`);
+    } else if (typeof value === "object" && value !== null) {
+      parts.push(`[${label}]\n${JSON.stringify(value, null, 2)}`);
+    }
+  }
+  return parts.join("\n\n") || "(데이터 없음)";
 }
 
 // Helper to format draft content nicely
