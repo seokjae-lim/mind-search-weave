@@ -16,6 +16,17 @@ import WordCloud from "./pages/WordCloud";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import NotFound from "./pages/NotFound";
 
+// Agent Hub
+import AgentHubPage from "./features/agent-hub/AgentHubPage";
+
+// Proposal Assistant stubs
+import AnalysisPage from "./features/proposal-assistant/pages/AnalysisPage";
+import ProposalPage from "./features/proposal-assistant/pages/ProposalPage";
+import ResearchPage from "./features/proposal-assistant/pages/ResearchPage";
+import DeliverablesPage from "./features/proposal-assistant/pages/DeliverablesPage";
+import HistoryPage from "./features/proposal-assistant/pages/HistoryPage";
+import SettingsPage from "./features/proposal-assistant/pages/SettingsPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -41,6 +52,18 @@ const App = () => (
                   <Route path="/ai-agent" element={<AIAgent />} />
                   <Route path="/visualization/wordcloud" element={<WordCloud />} />
                   <Route path="/visualization/knowledge-graph" element={<KnowledgeGraph />} />
+
+                  {/* Agent Hub */}
+                  <Route path="/agent" element={<AgentHubPage />} />
+
+                  {/* Proposal Assistant */}
+                  <Route path="/assistant/analysis" element={<AnalysisPage />} />
+                  <Route path="/assistant/proposal" element={<ProposalPage />} />
+                  <Route path="/assistant/research" element={<ResearchPage />} />
+                  <Route path="/assistant/deliverables" element={<DeliverablesPage />} />
+                  <Route path="/assistant/history" element={<HistoryPage />} />
+                  <Route path="/assistant/settings" element={<SettingsPage />} />
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>

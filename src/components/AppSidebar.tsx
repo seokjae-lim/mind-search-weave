@@ -1,4 +1,4 @@
-import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, Home } from "lucide-react";
+import { Search, FolderOpen, BarChart3, Bot, Cloud, Network, Home, Zap } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -27,10 +27,6 @@ const mainItems = [
 const browseChildren = [
   { title: "폴더 탐색", url: "/browse", icon: FolderOpen },
   { title: "지식 그래프", url: "/visualization/knowledge-graph", icon: Network },
-];
-
-const aiItems = [
-  { title: "챗봇", url: "/ai-agent", icon: Bot },
 ];
 
 const vizItems = [
@@ -129,7 +125,7 @@ export function AppSidebar() {
         </button>
       </SidebarHeader>
       <SidebarContent>
-        {/* Home button */}
+        {/* Home */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -152,7 +148,42 @@ export function AppSidebar() {
 
         <MenuGroup label="메뉴" items={mainItems} />
         <BrowseGroup />
-        <MenuGroup label="AI" items={aiItems} />
+
+        {/* AI 에이전트 — 단일 최상위 버튼 */}
+        <SidebarGroup>
+          <SidebarGroupLabel>AI</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/agent"
+                    end
+                    className="flex items-center gap-2"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <Zap className="h-4 w-4" />
+                    <span>AI 에이전트</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/ai-agent"
+                    end
+                    className="flex items-center gap-2"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <Bot className="h-4 w-4" />
+                    <span>챗봇</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <MenuGroup label="시각화" items={vizItems} />
       </SidebarContent>
     </Sidebar>
