@@ -497,10 +497,8 @@ export async function exportProposalToPdf(
         doc.setTextColor(0);
         y += 3;
 
-        // Render deliverable content
-        doc.setFontSize(9);
-        const contentText = formatDeliverableContent(deliv.deliverable_type, deliv.content);
-        y = addWrappedText(doc, contentText, PAGE_MARGIN, y, MAX_W, 4.5);
+        // Render deliverable content as structured table
+        y = renderDeliverableTable(doc, deliv.deliverable_type, deliv.content, y);
         y += 6;
       }
     }
@@ -555,7 +553,320 @@ export async function exportProposalToPdf(
   doc.save(`${project.title.replace(/[^a-zA-Z0-9가-힣]/g, "_")}_제안서.pdf`);
 }
 
-// Helper to format deliverable content
+// ── PDF Table Drawing Helper ──
+
+function wrapCellText(doc: jsPDF, text: string, maxWidth: number): string[] {
+  if (!text) return [""];
+  return doc.splitTextToSize(text, maxWidth);
+}
+
+function drawTable(
+  doc: jsPDF,
+  headers: string[],
+  rows: string[][],
+  x: number,
+  y: number,
+  colWidths: number[],
+  options?: { headerColor?: [number, number, number]; highlightRows?: number[] }
+): number {
+  const cellPadding = 2;
+  const minRowH = 7;
+  const headerColor = options?.headerColor || [41, 98, 255];
+  const highlightRows = new Set(options?.highlightRows || []);
+  const totalW = colWidths.reduce((a, b) => a + b, 0);
+
+  const calcRowHeight = (cells: string[]): number => {
+    let maxLines = 1;
+    cells.forEach((cell, ci) => {
+      const lines = wrapCellText(doc, cell, colWidths[ci] - cellPadding * 2);
+      if (lines.length > maxLines) maxLines = lines.length;
+    });
+    return Math.max(minRowH, maxLines * 4 + cellPadding * 2);
+  };
+
+  const drawRowFn = (cells: string[], rowY: number, isHeader: boolean, isHighlight: boolean, isEven: boolean): number => {
+    const rowH = calcRowHeight(cells);
+    if (rowY + rowH > CONTENT_BOTTOM) {
+      doc.addPage();
+      rowY = PAGE_MARGIN;
+      if (!isHeader) {
+        rowY = drawRowFn(headers, rowY, true, false, false);
+      }
+    }
+    if (isHeader) {
+      doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+      doc.rect(x, rowY, totalW, rowH, "F");
+    } else if (isHighlight) {
+      doc.setFillColor(255, 248, 220);
+      doc.rect(x, rowY, totalW, rowH, "F");
+    } else if (isEven) {
+      doc.setFillColor(245, 247, 250);
+      doc.rect(x, rowY, totalW, rowH, "F");
+    }
+    let cx = x;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    for (const w of colWidths) {
+      doc.rect(cx, rowY, w, rowH, "S");
+      cx += w;
+    }
+    doc.setFontSize(isHeader ? 8.5 : 8);
+    if (isHeader) { doc.setTextColor(255, 255, 255); }
+    else if (isHighlight) { doc.setTextColor(100, 80, 0); }
+    else { doc.setTextColor(30, 30, 30); }
+    cx = x;
+    cells.forEach((cell, ci) => {
+      const lines = wrapCellText(doc, cell, colWidths[ci] - cellPadding * 2);
+      let ty = rowY + cellPadding + 3;
+      for (const line of lines) {
+        doc.text(line, cx + cellPadding, ty);
+        ty += 4;
+      }
+      cx += colWidths[ci];
+    });
+    doc.setTextColor(0);
+    return rowY + rowH;
+  };
+
+  y = drawRowFn(headers, y, true, false, false);
+  rows.forEach((row, ri) => {
+    y = drawRowFn(row, y, false, highlightRows.has(ri), ri % 2 === 0);
+  });
+  return y;
+}
+
+function addSubSectionTitle(doc: jsPDF, title: string, y: number): number {
+  if (y > 260) { doc.addPage(); y = PAGE_MARGIN; }
+  doc.setFontSize(9.5);
+  doc.setTextColor(41, 98, 255);
+  y = addWrappedText(doc, `■ ${title}`, PAGE_MARGIN, y, MAX_W, 5);
+  doc.setTextColor(0);
+  y += 2;
+  return y;
+}
+
+function renderKeyValueTable(doc: jsPDF, data: Record<string, unknown>, y: number, keys?: string[], labels?: Record<string, string>): number {
+  const rows: string[][] = [];
+  const entries = keys
+    ? keys.filter(k => data[k] != null).map(k => [k, data[k]] as [string, unknown])
+    : Object.entries(data).filter(([, v]) => v != null && typeof v !== "object");
+  for (const [key, value] of entries) {
+    const label = labels?.[key] || key.replace(/_/g, " ");
+    rows.push([label, typeof value === "string" ? value : JSON.stringify(value)]);
+  }
+  if (rows.length === 0) return y;
+  return drawTable(doc, ["항목", "내용"], rows, PAGE_MARGIN, y, [40, 130]);
+}
+
+function renderListTable(doc: jsPDF, title: string, items: unknown[], y: number): number {
+  if (!items || items.length === 0) return y;
+  y = addSubSectionTitle(doc, title, y);
+  const rows = items.map((item, i) => {
+    const text = typeof item === "string" ? item : JSON.stringify(item);
+    return [String(i + 1), text];
+  });
+  y = drawTable(doc, ["번호", "내용"], rows, PAGE_MARGIN, y, [15, 155]);
+  y += 4;
+  return y;
+}
+
+// ── Type-specific deliverable renderers ──
+
+function renderDefinitionTable(doc: jsPDF, content: Record<string, unknown>, y: number): number {
+  const infoKeys = ["purpose", "scope", "target_system", "project_duration", "stakeholders"];
+  const infoLabels: Record<string, string> = { purpose: "목적", scope: "범위", target_system: "대상 시스템", project_duration: "프로젝트 기간", stakeholders: "이해관계자" };
+  if (infoKeys.some(k => content[k])) {
+    y = addSubSectionTitle(doc, "기본 정보", y);
+    y = renderKeyValueTable(doc, content, y, infoKeys, infoLabels);
+    y += 4;
+  }
+  const listSections: [string, string][] = [
+    ["requirements", "세부 요구사항"], ["detailed_requirements", "상세 요구사항"],
+    ["acceptance_criteria", "인수 기준"], ["constraints", "제약사항"],
+    ["expected_outcomes", "기대효과"], ["assumptions", "가정사항"],
+  ];
+  for (const [key, label] of listSections) {
+    if (Array.isArray(content[key]) && (content[key] as unknown[]).length > 0) {
+      y = renderListTable(doc, label, content[key] as unknown[], y);
+    }
+  }
+  const handledKeys = new Set([...infoKeys, ...listSections.map(([k]) => k)]);
+  for (const [key, value] of Object.entries(content)) {
+    if (handledKeys.has(key)) continue;
+    if (typeof value === "string") {
+      y = addSubSectionTitle(doc, key.replace(/_/g, " "), y);
+      doc.setFontSize(8.5); y = addWrappedText(doc, value, PAGE_MARGIN, y, MAX_W, 4); y += 3;
+    } else if (Array.isArray(value) && value.length > 0) {
+      y = renderListTable(doc, key.replace(/_/g, " "), value, y);
+    }
+  }
+  return y;
+}
+
+function renderWbsTable(doc: jsPDF, content: Record<string, unknown>, y: number): number {
+  const phases = (content.phases || content.work_packages || content.tasks) as unknown[];
+  if (Array.isArray(phases) && phases.length > 0) {
+    y = addSubSectionTitle(doc, "작업 분해 구조", y);
+    const rows: string[][] = [];
+    const highlightRows: number[] = [];
+    for (const phase of phases) {
+      if (typeof phase === "object" && phase !== null) {
+        const p = phase as Record<string, unknown>;
+        if (p.phase_name || p.name) {
+          highlightRows.push(rows.length);
+          rows.push([String(p.code || p.phase_code || ""), String(p.phase_name || p.name || ""), String(p.duration || ""), "", ""]);
+        }
+        const tasks = (p.tasks || p.activities) as unknown[];
+        if (Array.isArray(tasks)) {
+          for (const task of tasks) {
+            const t = task as Record<string, unknown>;
+            rows.push([String(t.code || t.task_code || ""), String(t.name || t.task_name || t.title || ""), String(t.duration || t.days || ""), String(t.deliverable || t.output || ""), String(t.resources || t.personnel || "")]);
+          }
+        }
+      } else if (typeof phase === "string") {
+        rows.push(["", phase, "", "", ""]);
+      }
+    }
+    if (rows.length > 0) {
+      y = drawTable(doc, ["코드", "작업명", "기간(일)", "산출물", "투입인력"], rows, PAGE_MARGIN, y, [18, 60, 20, 40, 32], { highlightRows });
+      y += 4;
+    }
+  }
+  const milestones = content.milestones as unknown[];
+  if (Array.isArray(milestones) && milestones.length > 0) {
+    y = addSubSectionTitle(doc, "마일스톤", y);
+    const rows = milestones.map(m => {
+      if (typeof m === "object" && m !== null) {
+        const ms = m as Record<string, unknown>;
+        return [String(ms.name || ms.milestone || ""), String(ms.week || ms.target_week || ms.date || "")];
+      }
+      return [String(m), ""];
+    });
+    y = drawTable(doc, ["마일스톤", "목표 시점"], rows, PAGE_MARGIN, y, [110, 60]);
+    y += 4;
+  }
+  const handledKeys = new Set(["phases", "work_packages", "tasks", "milestones", "schedule", "timeline"]);
+  for (const [key, value] of Object.entries(content)) {
+    if (handledKeys.has(key)) continue;
+    if (typeof value === "string") {
+      y = addSubSectionTitle(doc, key.replace(/_/g, " "), y);
+      doc.setFontSize(8.5); y = addWrappedText(doc, value, PAGE_MARGIN, y, MAX_W, 4); y += 3;
+    } else if (Array.isArray(value) && value.length > 0) {
+      y = renderListTable(doc, key.replace(/_/g, " "), value, y);
+    }
+  }
+  return y;
+}
+
+function renderEstimateTable(doc: jsPDF, content: Record<string, unknown>, y: number): number {
+  const categories = (content.categories || content.cost_categories || content.cost_items) as unknown[];
+  if (Array.isArray(categories) && categories.length > 0) {
+    y = addSubSectionTitle(doc, "비용 내역", y);
+    const rows: string[][] = [];
+    const highlightRows: number[] = [];
+    for (const cat of categories) {
+      if (typeof cat === "object" && cat !== null) {
+        const c = cat as Record<string, unknown>;
+        if (c.category || c.name) {
+          highlightRows.push(rows.length);
+          rows.push([String(c.category || c.name || ""), "", "", "", String(c.subtotal || c.total || ""), ""]);
+        }
+        const items = (c.items || c.details) as unknown[];
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            const it = item as Record<string, unknown>;
+            rows.push([String(it.name || it.item || ""), String(it.quantity || it.qty || ""), String(it.unit || ""), String(it.unit_price || it.price || ""), String(it.total || it.amount || ""), String(it.note || it.remarks || "")]);
+          }
+        }
+      }
+    }
+    if (rows.length > 0) {
+      y = drawTable(doc, ["항목", "수량", "단위", "단가", "합계", "비고"], rows, PAGE_MARGIN, y, [45, 18, 18, 25, 30, 34], { highlightRows });
+      y += 4;
+    }
+  }
+  if (content.total || content.grand_total || content.total_cost) {
+    doc.setFontSize(9);
+    doc.setTextColor(41, 98, 255);
+    y = addWrappedText(doc, `총 합계: ${String(content.total || content.grand_total || content.total_cost)}`, PAGE_MARGIN, y, MAX_W, 5);
+    doc.setTextColor(0); y += 3;
+  }
+  const personnel = (content.personnel || content.manpower || content.resource_plan) as unknown[];
+  if (Array.isArray(personnel) && personnel.length > 0) {
+    y = addSubSectionTitle(doc, "인력 투입 계획", y);
+    const rows = personnel.map(p => {
+      if (typeof p === "object" && p !== null) {
+        const pr = p as Record<string, unknown>;
+        return [String(pr.role || pr.position || ""), String(pr.grade || pr.level || ""), String(pr.count || pr.headcount || ""), String(pr.duration || pr.period || ""), String(pr.unit_price || pr.monthly_rate || ""), String(pr.total || pr.subtotal || "")];
+      }
+      return [String(p), "", "", "", "", ""];
+    });
+    y = drawTable(doc, ["역할", "등급", "인원", "기간", "단가", "합계"], rows, PAGE_MARGIN, y, [35, 22, 18, 22, 30, 43]);
+    y += 4;
+  }
+  const handledKeys = new Set(["categories", "cost_categories", "cost_items", "total", "grand_total", "total_cost", "personnel", "manpower", "resource_plan"]);
+  for (const [key, value] of Object.entries(content)) {
+    if (handledKeys.has(key)) continue;
+    if (typeof value === "string") {
+      y = addSubSectionTitle(doc, key.replace(/_/g, " "), y);
+      doc.setFontSize(8.5); y = addWrappedText(doc, value, PAGE_MARGIN, y, MAX_W, 4); y += 3;
+    } else if (Array.isArray(value) && value.length > 0) {
+      y = renderListTable(doc, key.replace(/_/g, " "), value, y);
+    }
+  }
+  return y;
+}
+
+function renderProposalTypeTable(doc: jsPDF, content: Record<string, unknown>, y: number): number {
+  const kvKeys = ["current_status", "solution", "architecture", "overview", "approach", "methodology"];
+  const kvLabels: Record<string, string> = { current_status: "현황 분석", solution: "솔루션", architecture: "아키텍처", overview: "개요", approach: "접근 방안", methodology: "방법론" };
+  for (const key of kvKeys) {
+    if (content[key] && typeof content[key] === "string") {
+      y = addSubSectionTitle(doc, kvLabels[key] || key, y);
+      doc.setFontSize(8.5); y = addWrappedText(doc, content[key] as string, PAGE_MARGIN, y, MAX_W, 4); y += 3;
+    } else if (content[key] && typeof content[key] === "object" && !Array.isArray(content[key])) {
+      y = addSubSectionTitle(doc, kvLabels[key] || key, y);
+      y = renderKeyValueTable(doc, content[key] as Record<string, unknown>, y); y += 3;
+    }
+  }
+  const listSections: [string, string][] = [
+    ["tech_stack", "기술 스택"], ["technology_stack", "기술 스택"], ["risks", "리스크"],
+    ["risk_factors", "리스크 요인"], ["countermeasures", "대응 방안"], ["mitigation_strategies", "리스크 대응"],
+    ["success_factors", "핵심 성공 요소"], ["key_features", "핵심 기능"], ["benefits", "기대 효과"],
+  ];
+  for (const [key, label] of listSections) {
+    if (Array.isArray(content[key]) && (content[key] as unknown[]).length > 0) {
+      y = renderListTable(doc, label, content[key] as unknown[], y);
+    }
+  }
+  const handledKeys = new Set([...kvKeys, ...listSections.map(([k]) => k)]);
+  for (const [key, value] of Object.entries(content)) {
+    if (handledKeys.has(key)) continue;
+    if (typeof value === "string") {
+      y = addSubSectionTitle(doc, key.replace(/_/g, " "), y);
+      doc.setFontSize(8.5); y = addWrappedText(doc, value, PAGE_MARGIN, y, MAX_W, 4); y += 3;
+    } else if (Array.isArray(value) && value.length > 0) {
+      y = renderListTable(doc, key.replace(/_/g, " "), value, y);
+    }
+  }
+  return y;
+}
+
+function renderDeliverableTable(doc: jsPDF, type: string, content: Record<string, unknown>, y: number): number {
+  switch (type) {
+    case "definition": return renderDefinitionTable(doc, content, y);
+    case "wbs": return renderWbsTable(doc, content, y);
+    case "estimate": return renderEstimateTable(doc, content, y);
+    case "proposal": return renderProposalTypeTable(doc, content, y);
+    default: {
+      doc.setFontSize(9);
+      const contentText = formatDeliverableContent(type, content);
+      return addWrappedText(doc, contentText, PAGE_MARGIN, y, MAX_W, 4.5);
+    }
+  }
+}
+
+// Helper to format deliverable content (kept for Excel/fallback)
 function formatDeliverableContent(type: string, data: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(data)) {
