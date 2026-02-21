@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ModelSelector, { availableModels } from "../components/ModelSelector";
+import { useUserApiKeys } from "../hooks/useUserApiKeys";
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -92,6 +93,7 @@ const WorkflowPageInner = () => {
 
   const { user, signUp, signIn } = useAuth();
   const { rfpContent } = useAnalysisContext();
+  const { hasKey } = useUserApiKeys();
 
   const {
     project,
@@ -310,20 +312,53 @@ const WorkflowPageInner = () => {
                     여러 모델로 동시에 조사한 후 결과를 취합하여 최적의 연구 결과를 생성합니다.
                     조사할 모델을 선택하세요 (2개 이상):
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {availableModels.filter(m => m.isLovable).map(m => (
-                      <Button
-                        key={m.id}
-                        variant={selectedModels.includes(m.id) ? "default" : "outline"}
-                        size="sm"
-                        className="gap-1.5 text-xs"
-                        onClick={() => toggleMultiModel(m.id)}
-                      >
-                        {selectedModels.includes(m.id) && <CheckSquare className="w-3 h-3" />}
-                        {m.name}
-                      </Button>
-                    ))}
-                  </div>
+                   <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground font-medium">Lovable 모델</p>
+                    <div className="flex flex-wrap gap-2">
+                      {availableModels.filter(m => m.isLovable).map(m => (
+                        <Button
+                          key={m.id}
+                          variant={selectedModels.includes(m.id) ? "default" : "outline"}
+                          size="sm"
+                          className="gap-1.5 text-xs"
+                          onClick={() => toggleMultiModel(m.id)}
+                        >
+                          {selectedModels.includes(m.id) && <CheckSquare className="w-3 h-3" />}
+                          {m.name}
+                        </Button>
+                      ))}
+                    </div>
+                    {(() => {
+                      const configuredExternal = availableModels.filter(m => !m.isLovable && hasKey(m.providerKey));
+                      if (configuredExternal.length === 0) return null;
+                      const grouped = configuredExternal.reduce<Record<string, typeof configuredExternal>>((acc, m) => {
+                        (acc[m.provider] = acc[m.provider] || []).push(m);
+                        return acc;
+                      }, {});
+                      return (
+                        <>
+                          <p className="text-[10px] text-muted-foreground font-medium mt-2">외부 모델 (API 키 설정됨)</p>
+                          {Object.entries(grouped).map(([provider, models]) => (
+                            <div key={provider} className="flex flex-wrap gap-2">
+                              {models.map(m => (
+                                <Button
+                                  key={m.id}
+                                  variant={selectedModels.includes(m.id) ? "default" : "outline"}
+                                  size="sm"
+                                  className="gap-1.5 text-xs border-dashed"
+                                  onClick={() => toggleMultiModel(m.id)}
+                                >
+                                  {selectedModels.includes(m.id) && <CheckSquare className="w-3 h-3" />}
+                                  {m.name}
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 ml-0.5">{provider}</Badge>
+                                </Button>
+                              ))}
+                            </div>
+                          ))}
+                        </>
+                      );
+                    })()}
+                   </div>
                   {selectedModels.length > 0 && (
                     <p className="text-xs text-muted-foreground">
                       ✅ {selectedModels.length}개 모델 선택됨 · 종합 모델: {availableModels.find(m => m.id === selectedModel)?.name || selectedModel}
