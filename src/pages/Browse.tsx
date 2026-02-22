@@ -189,17 +189,17 @@ export default function BrowsePage() {
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 48px)' }}>
       {/* View mode tabs */}
-      <div className="border-b bg-background px-3 sm:px-4 pt-2 sm:pt-3 pb-0">
+      <div className="border-b border-border/60 bg-background px-3 sm:px-4 pt-2 sm:pt-3 pb-0">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
-          <TabsList className="bg-transparent h-auto p-0 gap-0">
-            <TabsTrigger value="tree" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
-              <LayoutGrid className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">카드 </span>탐색
+          <TabsList className="bg-transparent h-auto p-0 gap-1">
+            <TabsTrigger value="tree" className="rounded-full border-0 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors">
+              <LayoutGrid className="h-3.5 w-3.5 mr-1.5" /> <span className="hidden sm:inline">카드 </span>탐색
             </TabsTrigger>
-            <TabsTrigger value="mindmap" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
-              <GitBranchPlus className="h-3.5 w-3.5 mr-1" /> 마인드맵
+            <TabsTrigger value="mindmap" className="rounded-full border-0 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors">
+              <GitBranchPlus className="h-3.5 w-3.5 mr-1.5" /> 마인드맵
             </TabsTrigger>
-            <TabsTrigger value="knowledge-graph" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm">
-              <Network className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">지식 </span>그래프
+            <TabsTrigger value="knowledge-graph" className="rounded-full border-0 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors">
+              <Network className="h-3.5 w-3.5 mr-1.5" /> <span className="hidden sm:inline">지식 </span>그래프
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -208,7 +208,7 @@ export default function BrowsePage() {
       {viewMode === "tree" ? (
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Filter bar */}
-          <div className="border-b bg-card/80 backdrop-blur px-3 sm:px-4 py-2 sm:py-3">
+          <div className="border-b border-border/60 bg-background/80 backdrop-blur-sm px-3 sm:px-4 py-2.5 sm:py-3">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Search */}
               <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
@@ -294,14 +294,14 @@ export default function BrowsePage() {
                 <p className="text-sm">검색 결과가 없습니다</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {filteredCards.map((f) => (
                   <Card
                     key={f.file_path}
-                    className="group cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5"
+                    className="group cursor-pointer transition-all shadow-google hover:shadow-google-hover border-border/60 hover:-translate-y-0.5"
                     onClick={() => navigate(`/doc/${encodeURIComponent(f.file_path)}`)}
                   >
-                    <CardContent className="p-3 sm:p-4 flex flex-col gap-2 sm:gap-3">
+                    <CardContent className="p-4 flex flex-col gap-2.5">
                       {/* Header: icon + type badge */}
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -309,14 +309,14 @@ export default function BrowsePage() {
                           <FileTypeBadge type={f.file_type} />
                         </div>
                         {f.doc_stage && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">
                             {f.doc_stage}
                           </Badge>
                         )}
                       </div>
 
                       {/* Title */}
-                      <h3 className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                      <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
                         {f.doc_title}
                       </h3>
 
@@ -330,14 +330,14 @@ export default function BrowsePage() {
                       <div className="flex flex-wrap gap-1">
                         {f.category && <CategoryBadge category={f.category} />}
                         {f.tags?.slice(0, 2).map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
+                          <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
                             {tag}
                           </Badge>
                         ))}
                       </div>
 
                       {/* Footer: meta info */}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/40">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           <span>{new Date(f.mtime).toLocaleDateString("ko-KR")}</span>
