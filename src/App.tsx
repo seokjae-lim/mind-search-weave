@@ -40,7 +40,7 @@ const App = () => (
             <div className="flex min-h-screen w-full">
               <AppSidebar />
               <div className="flex flex-1 flex-col">
-                <header className="flex h-12 items-center justify-between border-b bg-background px-4">
+                <header className="flex h-12 items-center justify-between border-b border-border/60 bg-background/80 backdrop-blur-sm px-4 sticky top-0 z-30">
                   <SidebarTrigger />
                   <ThemeToggle />
                 </header>

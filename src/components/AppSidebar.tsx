@@ -34,24 +34,24 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4 border-b">
+      <SidebarHeader className="px-5 py-4 border-b border-sidebar-border">
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate("/"); }}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer text-left"
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer text-left"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-google">
             K
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold text-sidebar-foreground">Knowledge Wiki</span>
-            <span className="text-[10px] text-sidebar-foreground/60">KM-AI 2.0 | Consulting Knowledge Platform</span>
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">Knowledge Wiki</span>
+            <span className="text-[10px] text-sidebar-foreground/50 font-medium">KM-AI 2.0</span>
           </div>
         </button>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-2 py-2">
         <SidebarGroup>
-          <SidebarGroupLabel>메뉴</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">메뉴</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -60,10 +60,10 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="flex items-center gap-2"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      activeClassName="bg-accent text-accent-foreground font-semibold"
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-[18px] w-[18px]" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -74,7 +74,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>AI</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">AI</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {aiItems.map((item) => (
@@ -83,10 +83,10 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="flex items-center gap-2"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      activeClassName="bg-accent text-accent-foreground font-semibold"
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-[18px] w-[18px]" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -97,7 +97,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>시각화</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">시각화</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {vizItems.map((item) => (
@@ -106,10 +106,10 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="flex items-center gap-2"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      activeClassName="bg-accent text-accent-foreground font-semibold"
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-[18px] w-[18px]" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
