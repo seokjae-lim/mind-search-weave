@@ -273,17 +273,37 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
         const w = containerRef.current.clientWidth;
         const h = containerRef.current.clientHeight;
         if (w > 0 && h > 0) {
-          setDimensions({ width: w, height: h });
+          setDimensions((prev) => {
+            if (prev.width !== w || prev.height !== h) {
+              // After dimension change, re-center graph
+              setTimeout(() => fgRef.current?.zoomToFit(400, 60), 300);
+              return { width: w, height: h };
+            }
+            return prev;
+          });
         }
       }
     };
     // Delay initial measurement to allow flex layout to resolve
-    const timer1 = setTimeout(update, 50);
-    const timer2 = setTimeout(update, 200);
+    const timer1 = setTimeout(update, 100);
+    const timer2 = setTimeout(update, 300);
+    const timer3 = setTimeout(update, 600);
     const ro = new ResizeObserver(update);
     if (containerRef.current) ro.observe(containerRef.current);
-    return () => { clearTimeout(timer1); clearTimeout(timer2); ro.disconnect(); };
+    return () => { clearTimeout(timer1); clearTimeout(timer2); clearTimeout(timer3); ro.disconnect(); };
   }, [isMobile]);
+
+  // Auto-fit graph after data loads and layout stabilizes
+  useEffect(() => {
+    if (!loading && graphData.nodes.length > 0) {
+      const timers = [
+        setTimeout(() => fgRef.current?.zoomToFit(400, 60), 500),
+        setTimeout(() => fgRef.current?.zoomToFit(400, 60), 1500),
+        setTimeout(() => fgRef.current?.zoomToFit(400, 60), 3000),
+      ];
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [loading, graphData.nodes.length]);
 
   const filteredData = (() => {
     if (filterType === "all") return graphData;
@@ -559,7 +579,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
 
       {/* Graph */}
       <div className="flex-1 relative min-h-0 overflow-hidden bg-[hsl(222,47%,6%)]">
-        <div ref={containerRef} className="absolute inset-0">
+        <div ref={containerRef} className="absolute inset-0 w-full h-full">
         <ForceGraph2D
           ref={fgRef}
           width={dimensions.width}
@@ -573,6 +593,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
           nodeRelSize={6}
           linkDirectionalParticles={0}
           cooldownTicks={100}
+          onEngineStop={() => fgRef.current?.zoomToFit(400, 60)}
           enableNodeDrag
           enableZoomInteraction
           enablePanInteraction

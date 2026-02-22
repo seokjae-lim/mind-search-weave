@@ -187,7 +187,7 @@ export default function BrowsePage() {
     });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 48px)' }}>
       {/* View mode tabs */}
       <div className="border-b bg-background px-3 sm:px-4 pt-2 sm:pt-3 pb-0">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
