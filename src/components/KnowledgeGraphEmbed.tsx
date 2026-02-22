@@ -272,14 +272,17 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       if (containerRef.current) {
         const w = containerRef.current.clientWidth;
         const h = containerRef.current.clientHeight;
-        setDimensions({ width: w || 800, height: h || 500 });
+        if (w > 0 && h > 0) {
+          setDimensions({ width: w, height: h });
+        }
       }
     };
     // Delay initial measurement to allow flex layout to resolve
-    const timer = setTimeout(update, 50);
+    const timer1 = setTimeout(update, 50);
+    const timer2 = setTimeout(update, 200);
     const ro = new ResizeObserver(update);
     if (containerRef.current) ro.observe(containerRef.current);
-    return () => { clearTimeout(timer); ro.disconnect(); };
+    return () => { clearTimeout(timer1); clearTimeout(timer2); ro.disconnect(); };
   }, [isMobile]);
 
   const filteredData = (() => {
@@ -555,7 +558,8 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
       )}
 
       {/* Graph */}
-      <div ref={containerRef} className="flex-1 relative min-h-0 overflow-hidden bg-[hsl(222,47%,6%)]">
+      <div className="flex-1 relative min-h-0 overflow-hidden bg-[hsl(222,47%,6%)]">
+        <div ref={containerRef} className="absolute inset-0">
         <ForceGraph2D
           ref={fgRef}
           width={dimensions.width}
@@ -575,6 +579,7 @@ export function KnowledgeGraphEmbed({ showHeader = true }: { showHeader?: boolea
           backgroundColor="hsl(222, 47%, 6%)"
         />
         {!isMobile && <Minimap fgRef={fgRef} graphData={filteredData} />}
+        </div>
       </div>
 
       {/* Tooltip */}
